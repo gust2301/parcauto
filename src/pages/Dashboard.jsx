@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MdDirectionsCar, MdWarning, MdAttachMoney, MdCalendarToday } from 'react-icons/md'
+import { MdGarage, MdNotificationsActive, MdPayments, MdAssessment } from 'react-icons/md'
 import StatCard from '../components/StatCard'
 import AlerteBadge from '../components/AlerteBadge'
 import { format, parseISO, differenceInDays, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns'
@@ -44,37 +44,63 @@ export default function Dashboard() {
     const [
       { data: vehicules },
       { data: docs },
+      { data: assurances },
       { data: entretiensMois },
       { data: contraventionsMois },
+      { data: assurancesMois },
       { data: entretiensAnnee },
       { data: contraventionsAnnee },
+      { data: assurancesAnnee },
       { data: entretiensGraph },
       { data: contraventionsGraph },
+      { data: assurancesGraph },
     ] = await Promise.all([
       supabase.from('vehicules').select('id, statut, immatriculation, marque, modele'),
       supabase.from('documents').select('*, vehicules(immatriculation, marque, modele)'),
+      supabase.from('assurances').select('*, vehicules(immatriculation, marque, modele)').order('date_echeance', { ascending: false }),
       supabase.from('entretiens').select('cout').gte('date', debutMois).lte('date', finMois),
       supabase.from('contraventions').select('montant').gte('date', debutMois).lte('date', finMois),
+      supabase.from('assurances').select('montant').gte('date_debut', debutMois).lte('date_debut', finMois),
       supabase.from('entretiens').select('cout').gte('date', debutAnnee).lte('date', finAnnee),
       supabase.from('contraventions').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
+      supabase.from('assurances').select('montant').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
       supabase.from('entretiens').select('cout, date').gte('date', debutAnnee).lte('date', finAnnee),
       supabase.from('contraventions').select('montant, date').gte('date', debutAnnee).lte('date', finAnnee),
+      supabase.from('assurances').select('montant, date_debut').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
     ])
 
     // Stats de base
     const actifs = (vehicules || []).filter(v => v.statut === 'actif').length
     const coutMois = (entretiensMois || []).reduce((s, e) => s + (e.cout || 0), 0)
                    + (contraventionsMois || []).reduce((s, c) => s + (c.montant || 0), 0)
+                   + (assurancesMois || []).reduce((s, a) => s + (a.montant || 0), 0)
     const coutAnnee = (entretiensAnnee || []).reduce((s, e) => s + (e.cout || 0), 0)
                     + (contraventionsAnnee || []).reduce((s, c) => s + (c.montant || 0), 0)
+                    + (assurancesAnnee || []).reduce((s, a) => s + (a.montant || 0), 0)
 
-    // Alertes documents
-    const docsAlerte = (docs || [])
-      .filter(d => d.date_echeance)
-      .map(d => ({
-        ...d,
-        jours: differenceInDays(parseISO(d.date_echeance), new Date()),
+    // Alertes : visite technique + assurances par véhicule (la plus récente)
+    const alertesVisite = (docs || [])
+      .filter(d => d.type === 'visite_technique' && d.date_echeance)
+      .map(d => ({ ...d, jours: differenceInDays(parseISO(d.date_echeance), new Date()), label: 'Visite technique' }))
+
+    // Grouper assurances par véhicule → garder la plus récente
+    const assurancesParVehicule = {}
+    ;(assurances || []).forEach(a => {
+      if (!assurancesParVehicule[a.vehicule_id]) assurancesParVehicule[a.vehicule_id] = a
+    })
+    const alertesAssurance = Object.values(assurancesParVehicule)
+      .filter(a => a.date_echeance)
+      .map(a => ({
+        id: a.id,
+        vehicule_id: a.vehicule_id,
+        vehicules: a.vehicules,
+        date_echeance: a.date_echeance,
+        type: 'assurance',
+        jours: differenceInDays(parseISO(a.date_echeance), new Date()),
+        label: 'Assurance',
       }))
+
+    const docsAlerte = [...alertesVisite, ...alertesAssurance]
       .filter(d => d.jours <= 30)
       .sort((a, b) => a.jours - b.jours)
 
@@ -83,6 +109,7 @@ export default function Dashboard() {
       mois: MOIS_LABELS[i],
       entretiens: 0,
       contraventions: 0,
+      assurances: 0,
     }))
 
     ;(entretiensGraph || []).forEach(e => {
@@ -93,19 +120,26 @@ export default function Dashboard() {
       const m = new Date(c.date).getMonth()
       moisData[m].contraventions += c.montant || 0
     })
+    ;(assurancesGraph || []).forEach(a => {
+      const m = new Date(a.date_debut).getMonth()
+      moisData[m].assurances += a.montant || 0
+    })
 
     // Coût par véhicule (annuel)
     const coutVehicule = await Promise.all((vehicules || []).map(async v => {
-      const [{ data: ent }, { data: con }] = await Promise.all([
+      const [{ data: ent }, { data: con }, { data: ass }] = await Promise.all([
         supabase.from('entretiens').select('cout').eq('vehicule_id', v.id)
           .gte('date', debutAnnee).lte('date', finAnnee),
         supabase.from('contraventions').select('montant').eq('vehicule_id', v.id)
           .gte('date', debutAnnee).lte('date', finAnnee),
+        supabase.from('assurances').select('montant').eq('vehicule_id', v.id)
+          .gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
       ])
       return {
         ...v,
         cout: (ent || []).reduce((s, e) => s + (e.cout || 0), 0)
-            + (con || []).reduce((s, c) => s + (c.montant || 0), 0),
+            + (con || []).reduce((s, c) => s + (c.montant || 0), 0)
+            + (ass || []).reduce((s, a) => s + (a.montant || 0), 0),
       }
     }))
 
@@ -128,10 +162,10 @@ export default function Dashboard() {
 
       {/* StatCards */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard titre="Véhicules actifs" valeur={stats.actifs} icone={MdDirectionsCar} couleur="blue" />
-        <StatCard titre="Alertes documents" valeur={stats.alertes} icone={MdWarning} couleur={stats.alertes > 0 ? 'red' : 'green'} />
-        <StatCard titre="Coût du mois" valeur={fmt(stats.coutMois)} icone={MdAttachMoney} couleur="orange" />
-        <StatCard titre="Coût de l'année" valeur={fmt(stats.coutAnnee)} icone={MdCalendarToday} couleur="purple" />
+        <StatCard titre="Véhicules actifs" valeur={stats.actifs} icone={MdGarage} couleur="blue" />
+        <StatCard titre="Alertes documents" valeur={stats.alertes} icone={MdNotificationsActive} couleur={stats.alertes > 0 ? 'red' : 'green'} />
+        <StatCard titre="Coût du mois" valeur={fmt(stats.coutMois)} icone={MdPayments} couleur="orange" />
+        <StatCard titre="Coût de l'année" valeur={fmt(stats.coutAnnee)} icone={MdAssessment} couleur="purple" />
       </div>
 
       <div className="grid grid-cols-2 gap-6">
@@ -199,10 +233,11 @@ export default function Dashboard() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="mois" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} tickFormatter={v => new Intl.NumberFormat('fr-FR', { notation: 'compact' }).format(v)} />
-            <Tooltip formatter={(v, name) => [new Intl.NumberFormat('fr-FR').format(v) + ' FCFA', name === 'entretiens' ? 'Entretiens' : 'Contraventions']} />
-            <Legend formatter={n => n === 'entretiens' ? 'Entretiens' : 'Contraventions'} />
+            <Tooltip formatter={(v, name) => [new Intl.NumberFormat('fr-FR').format(v) + ' FCFA', { entretiens: 'Entretiens', contraventions: 'Contraventions', assurances: 'Assurances' }[name] || name]} />
+            <Legend formatter={n => ({ entretiens: 'Entretiens', contraventions: 'Contraventions', assurances: 'Assurances' })[n] || n} />
             <Bar dataKey="entretiens" fill="#1A3C6B" radius={[3, 3, 0, 0]} />
             <Bar dataKey="contraventions" fill="#f97316" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="assurances" fill="#10b981" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

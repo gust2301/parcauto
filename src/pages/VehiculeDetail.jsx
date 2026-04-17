@@ -228,97 +228,157 @@ function OngletCarburant({ vehiculeId }) {
 // Onglet Documents
 // ──────────────────────────────────────────────────────────────────────────────
 function OngletDocuments({ vehiculeId }) {
-  const TYPES = [
-    { key: 'assurance',        label: 'Assurance' },
-    { key: 'visite_technique', label: 'Visite technique' },
-  ]
-  const [docs, setDocs] = useState({})
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ date_realisation: '', date_echeance: '' })
-  const [saving, setSaving] = useState(false)
+  // ── Visite technique ──────────────────────────────────────────────────────
+  const [visite, setVisite] = useState(null)
+  const [editingVisite, setEditingVisite] = useState(false)
+  const [formVisite, setFormVisite] = useState({ date_realisation: '', date_echeance: '' })
+  const [savingVisite, setSavingVisite] = useState(false)
+
+  // ── Assurances ────────────────────────────────────────────────────────────
+  const [assurances, setAssurances] = useState([])
+  const [showFormAssurance, setShowFormAssurance] = useState(false)
+  const [formAssurance, setFormAssurance] = useState({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' })
+  const [savingAssurance, setSavingAssurance] = useState(false)
 
   useEffect(() => { load() }, [vehiculeId])
 
   async function load() {
-    const { data } = await supabase.from('documents').select('*').eq('vehicule_id', vehiculeId)
+    const [{ data: docs }, { data: ass }] = await Promise.all([
+      supabase.from('documents').select('*').eq('vehicule_id', vehiculeId),
+      supabase.from('assurances').select('*').eq('vehicule_id', vehiculeId).order('date_debut', { ascending: false }),
+    ])
     const map = {}
-    ;(data || []).forEach(d => { map[d.type] = d })
-    setDocs(map)
+    ;(docs || []).forEach(d => { map[d.type] = d })
+    setVisite(map['visite_technique'] || null)
+    setAssurances(ass || [])
   }
 
-  async function handleSave(type) {
-    setSaving(true)
-    const existing = docs[type]
-    const payload = {
-      vehicule_id: vehiculeId,
-      type,
-      date_realisation: form.date_realisation || null,
-      date_echeance: form.date_echeance || null,
-    }
-    if (existing) {
-      await supabase.from('documents').update(payload).eq('id', existing.id)
-    } else {
-      await supabase.from('documents').insert(payload)
-    }
-    setEditing(null)
+  async function handleSaveVisite() {
+    setSavingVisite(true)
+    const payload = { vehicule_id: vehiculeId, type: 'visite_technique', date_realisation: formVisite.date_realisation || null, date_echeance: formVisite.date_echeance || null }
+    if (visite) await supabase.from('documents').update(payload).eq('id', visite.id)
+    else await supabase.from('documents').insert(payload)
+    setEditingVisite(false)
     load()
-    setSaving(false)
+    setSavingVisite(false)
   }
+
+  async function handleSaveAssurance(e) {
+    e.preventDefault()
+    setSavingAssurance(true)
+    await supabase.from('assurances').insert({
+      vehicule_id: vehiculeId,
+      date_debut: formAssurance.date_debut,
+      date_echeance: formAssurance.date_echeance,
+      montant: formAssurance.montant ? parseInt(formAssurance.montant) : 0,
+      assureur: formAssurance.assureur || null,
+      numero_police: formAssurance.numero_police || null,
+    })
+    setFormAssurance({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' })
+    setShowFormAssurance(false)
+    load()
+    setSavingAssurance(false)
+  }
+
+  const assuranceActive = assurances[0] // la plus récente
+
+  const colsAssurance = [
+    { label: 'Période',        key: 'periode',       render: r => `${fmtDate(r.date_debut)} → ${fmtDate(r.date_echeance)}` },
+    { label: 'Assureur',       key: 'assureur' },
+    { label: 'N° police',      key: 'numero_police' },
+    { label: 'Montant (FCFA)', key: 'montant',       render: r => fmtNum(r.montant) },
+    { label: 'Statut',         key: 'statut',        render: r => <AlerteBadge dateEcheance={r.date_echeance} /> },
+  ]
 
   return (
-    <div className="space-y-4">
-      {TYPES.map(({ key, label }) => {
-        const doc = docs[key]
-        const isEditing = editing === key
-        return (
-          <div key={key} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <h3 className="font-semibold text-gray-800">{label}</h3>
-                {doc?.date_echeance && <AlerteBadge dateEcheance={doc.date_echeance} />}
-                {!doc && <span className="text-xs text-gray-400 italic">Non renseigné</span>}
-              </div>
-              <button
-                className="text-sm text-[#1A3C6B] underline hover:no-underline"
-                onClick={() => {
-                  setEditing(isEditing ? null : key)
-                  setForm({
-                    date_realisation: doc?.date_realisation || '',
-                    date_echeance: doc?.date_echeance || '',
-                  })
-                }}
-              >
-                {isEditing ? 'Annuler' : (doc ? 'Modifier' : 'Renseigner')}
-              </button>
-            </div>
+    <div className="space-y-6">
 
-            {!isEditing && doc && (
-              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                <div><span className="font-medium">Réalisé le :</span> {fmtDate(doc.date_realisation)}</div>
-                <div><span className="font-medium">Échéance :</span> {fmtDate(doc.date_echeance)}</div>
-              </div>
-            )}
-
-            {isEditing && (
-              <div className="flex items-end gap-4 mt-2">
-                <div>
-                  <label className="form-label">Date de réalisation</label>
-                  <input type="date" className="form-input w-40" value={form.date_realisation}
-                    onChange={e => setForm({...form, date_realisation: e.target.value})} />
-                </div>
-                <div>
-                  <label className="form-label">Date d'échéance</label>
-                  <input type="date" className="form-input w-40" value={form.date_echeance}
-                    onChange={e => setForm({...form, date_echeance: e.target.value})} />
-                </div>
-                <button className="btn-primary" onClick={() => handleSave(key)} disabled={saving}>
-                  {saving ? '...' : 'Enregistrer'}
-                </button>
-              </div>
-            )}
+      {/* ── Assurance ─────────────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <h3 className="font-semibold text-gray-800">Assurance</h3>
+            {assuranceActive && <AlerteBadge dateEcheance={assuranceActive.date_echeance} />}
+            {assuranceActive && <span className="text-xs text-gray-400">Échéance : {fmtDate(assuranceActive.date_echeance)}</span>}
           </div>
-        )
-      })}
+          <button className="btn-primary flex items-center gap-1 py-1.5 text-xs" onClick={() => setShowFormAssurance(v => !v)}>
+            <MdAdd size={16} /> Nouveau contrat
+          </button>
+        </div>
+
+        {showFormAssurance && (
+          <form onSubmit={handleSaveAssurance} className="p-4 bg-blue-50 border-b border-gray-200">
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div>
+                <label className="form-label">Date début *</label>
+                <input type="date" className="form-input" value={formAssurance.date_debut} onChange={e => setFormAssurance(f => ({...f, date_debut: e.target.value}))} required />
+              </div>
+              <div>
+                <label className="form-label">Date échéance *</label>
+                <input type="date" className="form-input" value={formAssurance.date_echeance} onChange={e => setFormAssurance(f => ({...f, date_echeance: e.target.value}))} required />
+              </div>
+              <div>
+                <label className="form-label">Montant (FCFA)</label>
+                <input type="number" className="form-input" min="0" value={formAssurance.montant} onChange={e => setFormAssurance(f => ({...f, montant: e.target.value}))} />
+              </div>
+              <div>
+                <label className="form-label">Assureur</label>
+                <input type="text" className="form-input" placeholder="Nom de la compagnie" value={formAssurance.assureur} onChange={e => setFormAssurance(f => ({...f, assureur: e.target.value}))} />
+              </div>
+              <div>
+                <label className="form-label">N° de police</label>
+                <input type="text" className="form-input" placeholder="Numéro de police" value={formAssurance.numero_police} onChange={e => setFormAssurance(f => ({...f, numero_police: e.target.value}))} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" className="btn-primary" disabled={savingAssurance}>{savingAssurance ? '...' : 'Enregistrer'}</button>
+              <button type="button" className="btn-secondary" onClick={() => setShowFormAssurance(false)}>Annuler</button>
+            </div>
+          </form>
+        )}
+
+        <div className="p-4">
+          <DataTable colonnes={colsAssurance} donnees={assurances} vide="Aucun contrat d'assurance enregistré" />
+        </div>
+      </div>
+
+      {/* ── Visite technique ──────────────────────────────────────────── */}
+      <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <h3 className="font-semibold text-gray-800">Visite technique</h3>
+            {visite?.date_echeance && <AlerteBadge dateEcheance={visite.date_echeance} />}
+            {!visite && <span className="text-xs text-gray-400 italic">Non renseigné</span>}
+          </div>
+          <button className="text-sm text-[#1A3C6B] underline hover:no-underline" onClick={() => {
+            setEditingVisite(v => !v)
+            setFormVisite({ date_realisation: visite?.date_realisation || '', date_echeance: visite?.date_echeance || '' })
+          }}>
+            {editingVisite ? 'Annuler' : (visite ? 'Modifier' : 'Renseigner')}
+          </button>
+        </div>
+
+        {!editingVisite && visite && (
+          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+            <div><span className="font-medium">Réalisé le :</span> {fmtDate(visite.date_realisation)}</div>
+            <div><span className="font-medium">Échéance :</span> {fmtDate(visite.date_echeance)}</div>
+          </div>
+        )}
+
+        {editingVisite && (
+          <div className="flex items-end gap-4 mt-2">
+            <div>
+              <label className="form-label">Date de réalisation</label>
+              <input type="date" className="form-input w-40" value={formVisite.date_realisation} onChange={e => setFormVisite(f => ({...f, date_realisation: e.target.value}))} />
+            </div>
+            <div>
+              <label className="form-label">Date d'échéance</label>
+              <input type="date" className="form-input w-40" value={formVisite.date_echeance} onChange={e => setFormVisite(f => ({...f, date_echeance: e.target.value}))} />
+            </div>
+            <button className="btn-primary" onClick={handleSaveVisite} disabled={savingVisite}>{savingVisite ? '...' : 'Enregistrer'}</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -39,12 +39,12 @@ export default function ContraventionForm() {
       setSaving(false)
       return
     }
-    navigate(`/vehicules/${id}`)
+    navigate(`/vehicules/${id}?tab=contraventions`)
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigate(`/vehicules/${id}`)}>
+      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigate(`/vehicules/${id}?tab=contraventions`)}>
         <MdArrowBack size={16} /> Retour au véhicule
       </button>
 
@@ -94,7 +94,7 @@ export default function ContraventionForm() {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" className="btn-secondary flex-1" onClick={() => navigate(`/vehicules/${id}`)}>
+            <button type="button" className="btn-secondary flex-1" onClick={() => navigate(`/vehicules/${id}?tab=contraventions`)}>
               Annuler
             </button>
             <button type="submit" className="btn-primary flex-1" disabled={saving}>
