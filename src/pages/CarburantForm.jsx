@@ -52,12 +52,12 @@ export default function CarburantForm() {
     if (km && km > kmVehicule) {
       await supabase.from('vehicules').update({ kilometrage: km }).eq('id', id)
     }
-    navigate(`/vehicules/${id}`)
+    navigate(`/vehicules/${id}?tab=carburant`)
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigate(`/vehicules/${id}`)}>
+      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigate(`/vehicules/${id}?tab=carburant`)}>
         <MdArrowBack size={16} /> Retour au véhicule
       </button>
 
@@ -99,7 +99,7 @@ export default function CarburantForm() {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" className="btn-secondary flex-1" onClick={() => navigate(`/vehicules/${id}`)}>
+            <button type="button" className="btn-secondary flex-1" onClick={() => navigate(`/vehicules/${id}?tab=carburant`)}>
               Annuler
             </button>
             <button type="submit" className="btn-primary flex-1" disabled={saving}>
