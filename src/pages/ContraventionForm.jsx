@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MdArrowBack } from 'react-icons/md'
+import { MdArrowBack, MdClose } from 'react-icons/md'
 
 export default function ContraventionForm({ editData, onSaved, onCancel }) {
   const params = useParams()
@@ -11,10 +11,10 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
 
   const [chauffeurs, setChauffeurs] = useState([])
   const [chauffeurSearch, setChauffeurSearch] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     lieu: '',
-    conducteur: '',
     chauffeur_id: '',
     nature: '',
     montant: '',
@@ -30,7 +30,6 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
       setForm({
         date: editData.date || new Date().toISOString().split('T')[0],
         lieu: editData.lieu || '',
-        conducteur: editData.conducteur || '',
         chauffeur_id: editData.chauffeur_id || '',
         nature: editData.nature || '',
         montant: editData.montant?.toString() || '',
@@ -44,9 +43,17 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
   }
 
   function selectChauffeur(c) {
-    setForm(f => ({ ...f, chauffeur_id: c.id, conducteur: c.nom_complet }))
+    setForm(f => ({ ...f, chauffeur_id: c.id }))
+    setChauffeurSearch('')
+    setShowDropdown(false)
+  }
+
+  function clearChauffeur() {
+    setForm(f => ({ ...f, chauffeur_id: '' }))
     setChauffeurSearch('')
   }
+
+  const selectedChauffeur = chauffeurs.find(c => c.id === form.chauffeur_id)
 
   const chauffeursFiltres = chauffeurs.filter(c =>
     c.nom_complet.toLowerCase().includes(chauffeurSearch.toLowerCase()) ||
@@ -61,7 +68,7 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
       vehicule_id: id,
       date: form.date,
       lieu: form.lieu || null,
-      conducteur: form.conducteur || null,
+      conducteur: selectedChauffeur?.nom_complet || null,
       chauffeur_id: form.chauffeur_id || null,
       nature: form.nature || null,
       montant: form.montant ? parseInt(form.montant) : 0,
@@ -90,8 +97,6 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
     }
   }
 
-  const selectedChauffeur = chauffeurs.find(c => c.id === form.chauffeur_id)
-
   const content = (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
@@ -109,53 +114,61 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
         </div>
       </div>
 
-      {/* Sélection chauffeur */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="relative">
-          <label className="form-label">Chauffeur (liste)</label>
-          {selectedChauffeur ? (
-            <div className="flex items-center gap-2">
-              <div className="form-input flex-1 bg-blue-50 text-[#1A3C6B] text-sm font-medium">
+      {/* Sélection chauffeur — liste déroulante avec recherche */}
+      <div>
+        <label className="form-label">Conducteur *</label>
+        {selectedChauffeur ? (
+          <div className="flex items-center gap-2">
+            <div className="form-input flex-1 bg-blue-50 border-[#1A3C6B] text-[#1A3C6B] font-medium flex items-center justify-between">
+              <span>
                 {selectedChauffeur.nom_complet}
-                {selectedChauffeur.matricule && <span className="text-gray-400 ml-1">· {selectedChauffeur.matricule}</span>}
-              </div>
-              <button type="button" className="text-gray-400 hover:text-red-500 text-lg leading-none"
-                onClick={() => setForm(f => ({ ...f, chauffeur_id: '', conducteur: '' }))}>×</button>
+                {selectedChauffeur.matricule && <span className="text-gray-400 font-normal ml-2">· {selectedChauffeur.matricule}</span>}
+                {selectedChauffeur.grade && <span className="text-gray-400 font-normal ml-1">· {selectedChauffeur.grade}</span>}
+              </span>
             </div>
-          ) : (
-            <div className="relative">
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Rechercher un chauffeur..."
-                value={chauffeurSearch}
-                onChange={e => setChauffeurSearch(e.target.value)}
-              />
-              {chauffeurSearch && chauffeursFiltres.length > 0 && (
-                <div className="absolute z-10 top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
-                  {chauffeursFiltres.map(c => (
+            <button type="button" className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" onClick={clearChauffeur}>
+              <MdClose size={18} />
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Rechercher un chauffeur par nom ou matricule..."
+              value={chauffeurSearch}
+              onChange={e => { setChauffeurSearch(e.target.value); setShowDropdown(true) }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+              autoComplete="off"
+            />
+            {showDropdown && (
+              <div className="absolute z-20 top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+                {chauffeursFiltres.length > 0 ? (
+                  chauffeursFiltres.map(c => (
                     <button key={c.id} type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
-                      onClick={() => selectChauffeur(c)}>
-                      <span className="font-medium">{c.nom_complet}</span>
-                      {c.matricule && <span className="text-gray-400 ml-2">{c.matricule}</span>}
-                      {c.grade && <span className="text-gray-400 ml-1">· {c.grade}</span>}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                      onMouseDown={() => selectChauffeur(c)}>
+                      <span className="font-medium text-gray-800">{c.nom_complet}</span>
+                      <span className="text-gray-400 ml-2 text-xs">
+                        {c.matricule && `${c.matricule}`}{c.grade && ` · ${c.grade}`}
+                      </span>
                     </button>
-                  ))}
-                </div>
-              )}
-              {chauffeurSearch && chauffeursFiltres.length === 0 && (
-                <div className="absolute z-10 top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 px-3 py-2 text-sm text-gray-400">
-                  Aucun chauffeur trouvé
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <div>
-          <label className="form-label">Nom conducteur (libre)</label>
-          <input type="text" className="form-input" placeholder="Nom si non dans la liste" value={form.conducteur} onChange={e => set('conducteur', e.target.value)} />
-        </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-3 text-sm text-gray-400 italic">
+                    {chauffeurs.length === 0
+                      ? 'Aucun chauffeur enregistré — ajoutez-en dans la section Chauffeurs'
+                      : 'Aucun résultat pour cette recherche'}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {chauffeurs.length === 0 && (
+          <p className="text-xs text-orange-500 mt-1">Aucun chauffeur enregistré. Créez-en d'abord dans la section <strong>Chauffeurs</strong>.</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -194,7 +207,8 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigateHook(`/vehicules/${id}?tab=contraventions`)}>
+      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1"
+        onClick={() => navigateHook(`/vehicules/${id}?tab=contraventions`)}>
         <MdArrowBack size={16} /> Retour au véhicule
       </button>
       <div className="card">
