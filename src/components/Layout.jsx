@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MdDashboard, MdDirectionsCar, MdLogout, MdLocalShipping, MdPerson, MdSettings } from 'react-icons/md'
+import { MdDashboard, MdDirectionsCar, MdLogout, MdPerson, MdSettings } from 'react-icons/md'
+import logo from '../assets/sn-cfs-flotte-logo-only.png'
 
 const navItems = [
   { to: '/dashboard',  label: 'Tableau de bord', icon: MdDashboard },
@@ -21,11 +22,9 @@ export default function Layout({ children }) {
       {/* Sidebar */}
       <aside className="w-60 min-h-screen bg-[#1A3C6B] text-white flex flex-col shadow-xl flex-shrink-0 print:hidden">
         {/* Logo */}
-        <div className="px-6 py-6 border-b border-white/10">
+        <div className="px-6 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
-              <MdLocalShipping size={20} />
-            </div>
+            <img src={logo} alt="SN-CFS Flotte" className="w-10 h-10 object-contain rounded-lg" />
             <div>
               <p className="font-bold text-white text-sm leading-tight">SN-CFS Flotte</p>
               <p className="text-white/50 text-xs">Gestion de flotte</p>

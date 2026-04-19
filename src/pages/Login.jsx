@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import logo from '../assets/sn-cfs-flotte-logo-only.png'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -24,8 +25,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#1A3C6B] rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg">
-            🚙
+          <div className="w-20 h-20 bg-[#1A3C6B] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg p-2">
+            <img src={logo} alt="SN-CFS Flotte" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-[#1A3C6B]">SN-CFS Flotte</h1>
           <p className="text-gray-500 text-sm mt-1">Gestion de flotte automobile</p>
