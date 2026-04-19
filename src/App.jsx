@@ -9,6 +9,8 @@ import VehiculeDetail from './pages/VehiculeDetail'
 import EntretienForm from './pages/EntretienForm'
 import CarburantForm from './pages/CarburantForm'
 import ContraventionForm from './pages/ContraventionForm'
+import Chauffeurs from './pages/Chauffeurs'
+import Settings from './pages/Settings'
 
 function ProtectedRoute({ session, children }) {
   if (!session) return <Navigate to="/login" replace />
@@ -40,12 +42,14 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
-        <Route path="/dashboard" element={<ProtectedRoute session={session}><Dashboard /></ProtectedRoute>} />
-        <Route path="/vehicules" element={<ProtectedRoute session={session}><Vehicules /></ProtectedRoute>} />
+        <Route path="/dashboard"   element={<ProtectedRoute session={session}><Dashboard /></ProtectedRoute>} />
+        <Route path="/vehicules"   element={<ProtectedRoute session={session}><Vehicules /></ProtectedRoute>} />
         <Route path="/vehicules/:id" element={<ProtectedRoute session={session}><VehiculeDetail /></ProtectedRoute>} />
-        <Route path="/vehicules/:id/entretien/new" element={<ProtectedRoute session={session}><EntretienForm /></ProtectedRoute>} />
-        <Route path="/vehicules/:id/carburant/new" element={<ProtectedRoute session={session}><CarburantForm /></ProtectedRoute>} />
+        <Route path="/vehicules/:id/entretien/new"    element={<ProtectedRoute session={session}><EntretienForm /></ProtectedRoute>} />
+        <Route path="/vehicules/:id/carburant/new"    element={<ProtectedRoute session={session}><CarburantForm /></ProtectedRoute>} />
         <Route path="/vehicules/:id/contravention/new" element={<ProtectedRoute session={session}><ContraventionForm /></ProtectedRoute>} />
+        <Route path="/chauffeurs"  element={<ProtectedRoute session={session}><Chauffeurs /></ProtectedRoute>} />
+        <Route path="/settings"    element={<ProtectedRoute session={session}><Settings /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to={session ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </BrowserRouter>
