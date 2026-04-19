@@ -6,6 +6,7 @@ import {
   MdCheck, MdClose, MdDirectionsCar, MdWarning,
 } from 'react-icons/md'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import SearchSort, { filterSort } from '../components/SearchSort'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -381,8 +382,11 @@ export default function Chauffeurs() {
   const [form, setForm] = useState({ nom_complet: '', matricule: '', grade: '' })
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState([]) // stats infractions par chauffeur
+  const [stats, setStats] = useState([])
   const [confirmDel, setConfirmDel] = useState(null)
+  const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState('nom_complet')
+  const [sortDir, setSortDir] = useState('asc')
 
   useEffect(() => { loadAll() }, [])
 
@@ -487,22 +491,33 @@ export default function Chauffeurs() {
 
       <div className="grid grid-cols-3 gap-6">
         {/* Liste chauffeurs */}
-        <div className="col-span-2 card p-0 overflow-hidden">
+        <div className="col-span-2 space-y-3">
+          <SearchSort
+            search={search} onSearch={setSearch}
+            placeholder="Rechercher par nom, matricule, grade..."
+            sortKey={sortKey} sortDir={sortDir}
+            onSort={(k, d) => { setSortKey(k); setSortDir(d) }}
+            sortOptions={[
+              { value: 'nom_complet', label: 'Nom' },
+              { value: 'matricule', label: 'Matricule' },
+              { value: 'grade', label: 'Grade' },
+            ]}
+          />
+          <div className="card p-0 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {['Nom complet', 'Matricule', 'Grade', 'Déplacements', ''].map(h => (
+                {['Nom complet', 'Matricule', 'Grade', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs text-gray-500 font-semibold uppercase">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {chauffeurs.map(c => (
+              {filterSort(chauffeurs, search, ['nom_complet', 'matricule', 'grade'], sortKey, sortDir).map(c => (
                 <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelected(c)}>
                   <td className="px-4 py-3 font-medium text-[#1A3C6B]">{c.nom_complet}</td>
                   <td className="px-4 py-3 text-gray-600">{c.matricule || '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{c.grade || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">—</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     {confirmDel === c.id ? (
                       <ConfirmDelete onConfirm={() => handleDelete(c.id)} onCancel={() => setConfirmDel(null)} />

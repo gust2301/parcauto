@@ -27,7 +27,7 @@ export default function Login() {
           <div className="w-16 h-16 bg-[#1A3C6B] rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg">
             🚙
           </div>
-          <h1 className="text-2xl font-bold text-[#1A3C6B]">PARCAUTO</h1>
+          <h1 className="text-2xl font-bold text-[#1A3C6B]">SN-CFS Flotte</h1>
           <p className="text-gray-500 text-sm mt-1">Gestion de flotte automobile</p>
         </div>
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdAdd, MdArrowForward, MdEdit, MdDelete, MdCheck, MdClose } from 'react-icons/md'
+import SearchSort, { filterSort } from '../components/SearchSort'
 
 const STATUT_CONFIG = {
   actif:   { label: 'Actif',    cls: 'bg-green-100 text-green-800' },
@@ -86,6 +87,8 @@ export default function Vehicules() {
   const [confirmDel, setConfirmDel] = useState(null)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState('created_at')
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => { load() }, [])
 
@@ -132,11 +135,7 @@ export default function Vehicules() {
     load()
   }
 
-  const filtered = vehicules.filter(v =>
-    v.immatriculation?.toLowerCase().includes(search.toLowerCase()) ||
-    v.marque?.toLowerCase().includes(search.toLowerCase()) ||
-    v.modele?.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = filterSort(vehicules, search, ['immatriculation', 'marque', 'modele', 'statut'], sortKey, sortDir)
 
   return (
     <div className="space-y-6">
@@ -147,14 +146,20 @@ export default function Vehicules() {
         </button>
       </div>
 
-      {/* Recherche */}
+      {/* Recherche + tri */}
       <div className="card py-4">
-        <input
-          type="text"
-          className="form-input max-w-xs"
-          placeholder="Rechercher (immat, marque...)"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+        <SearchSort
+          search={search} onSearch={setSearch}
+          placeholder="Rechercher (immatriculation, marque, modèle, statut...)"
+          sortKey={sortKey} sortDir={sortDir}
+          onSort={(k, d) => { setSortKey(k); setSortDir(d) }}
+          sortOptions={[
+            { value: 'immatriculation', label: 'Immatriculation' },
+            { value: 'marque', label: 'Marque' },
+            { value: 'annee', label: 'Année' },
+            { value: 'kilometrage', label: 'Kilométrage' },
+            { value: 'statut', label: 'Statut' },
+          ]}
         />
       </div>
 

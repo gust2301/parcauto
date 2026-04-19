@@ -13,6 +13,7 @@ import {
 } from 'react-icons/md'
 import CarburantForm from './CarburantForm'
 import ContraventionForm from './ContraventionForm'
+import SearchSort, { filterSort } from '../components/SearchSort'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -87,6 +88,9 @@ function OngletEntretiens({ vehiculeId }) {
   const [editing, setEditing] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => { load() }, [vehiculeId])
 
@@ -135,6 +139,8 @@ function OngletEntretiens({ vehiculeId }) {
     )},
   ]
 
+  const filtered = filterSort(data, search, ['type_intervention', 'pieces', 'garage', 'commentaire'], sortKey, sortDir)
+
   return (
     <div>
       <div className="flex justify-between mb-4">
@@ -145,7 +151,22 @@ function OngletEntretiens({ vehiculeId }) {
           <MdAdd size={18} /> Ajouter un entretien
         </button>
       </div>
-      <DataTable colonnes={cols} donnees={data} vide="Aucun entretien enregistré" />
+      <div className="mb-4">
+        <SearchSort
+          search={search} onSearch={setSearch}
+          placeholder="Rechercher (intervention, pièces, garage...)"
+          sortKey={sortKey} sortDir={sortDir}
+          onSort={(k, d) => { setSortKey(k); setSortDir(d) }}
+          sortOptions={[
+            { value: 'date',             label: 'Date' },
+            { value: 'type_intervention',label: 'Intervention' },
+            { value: 'cout',             label: 'Coût' },
+            { value: 'kilometrage',      label: 'Kilométrage' },
+            { value: 'garage',           label: 'Garage' },
+          ]}
+        />
+      </div>
+      <DataTable colonnes={cols} donnees={filtered} vide="Aucun entretien enregistré" />
 
       {editing && (
         <Modal title="Modifier l'entretien" onClose={() => setEditing(null)}>
@@ -204,6 +225,9 @@ function OngletCarburant({ vehiculeId }) {
   const [vue, setVue] = useState('pleins')
   const [annee, setAnnee] = useState(new Date().getFullYear())
   const [editData, setEditData] = useState(null)
+  const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => { load() }, [vehiculeId])
 
@@ -288,7 +312,27 @@ function OngletCarburant({ vehiculeId }) {
         </div>
       </div>
 
-      {vue === 'pleins' && <DataTable colonnes={cols} donnees={avecConso} vide="Aucun plein enregistré" />}
+      {vue === 'pleins' && (
+        <>
+          <div className="mb-4">
+            <SearchSort
+              search={search} onSearch={setSearch}
+              placeholder="Rechercher (type, station, carte...)"
+              sortKey={sortKey} sortDir={sortDir}
+              onSort={(k, d) => { setSortKey(k); setSortDir(d) }}
+              sortOptions={[
+                { value: 'date',         label: 'Date' },
+                { value: 'type_carburant', label: 'Type' },
+                { value: 'litres',       label: 'Litres' },
+                { value: 'montant',      label: 'Montant' },
+                { value: 'kilometrage',  label: 'Kilométrage' },
+                { value: 'station',      label: 'Station' },
+              ]}
+            />
+          </div>
+          <DataTable colonnes={cols} donnees={filterSort(avecConso, search, ['type_carburant', 'station', 'reference_bon'], sortKey, sortDir)} vide="Aucun plein enregistré" />
+        </>
+      )}
 
       {vue === 'stats' && (
         <div className="space-y-6">
@@ -392,6 +436,9 @@ function OngletDocuments({ vehiculeId }) {
   const [editingAssurance, setEditingAssurance] = useState(null)
   const [formAssurance, setFormAssurance] = useState({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' })
   const [savingAssurance, setSavingAssurance] = useState(false)
+  const [assSearch, setAssSearch] = useState('')
+  const [assSortKey, setAssSortKey] = useState('date_debut')
+  const [assSortDir, setAssSortDir] = useState('desc')
 
   useEffect(() => { load() }, [vehiculeId])
 
@@ -518,7 +565,21 @@ function OngletDocuments({ vehiculeId }) {
         )}
 
         <div className="p-4">
-          <DataTable colonnes={colsAssurance} donnees={assurances} vide="Aucun contrat d'assurance enregistré" />
+          <div className="mb-3">
+            <SearchSort
+              search={assSearch} onSearch={setAssSearch}
+              placeholder="Rechercher (assureur, n° police...)"
+              sortKey={assSortKey} sortDir={assSortDir}
+              onSort={(k, d) => { setAssSortKey(k); setAssSortDir(d) }}
+              sortOptions={[
+                { value: 'date_debut',    label: 'Début' },
+                { value: 'date_echeance', label: 'Échéance' },
+                { value: 'assureur',      label: 'Assureur' },
+                { value: 'montant',       label: 'Montant' },
+              ]}
+            />
+          </div>
+          <DataTable colonnes={colsAssurance} donnees={filterSort(assurances, assSearch, ['assureur', 'numero_police'], assSortKey, assSortDir)} vide="Aucun contrat d'assurance enregistré" />
         </div>
       </div>
 
@@ -568,6 +629,9 @@ function OngletContraventions({ vehiculeId }) {
   const navigate = useNavigate()
   const [data, setData] = useState([])
   const [editData, setEditData] = useState(null)
+  const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => { load() }, [vehiculeId])
 
@@ -603,6 +667,8 @@ function OngletContraventions({ vehiculeId }) {
     )},
   ]
 
+  const filtered = filterSort(data, search, ['lieu', 'conducteur', 'nature', 'statut'], sortKey, sortDir)
+
   return (
     <div>
       <div className="flex justify-end mb-4 gap-2">
@@ -613,7 +679,22 @@ function OngletContraventions({ vehiculeId }) {
           <MdAdd size={18} /> Ajouter une contravention
         </button>
       </div>
-      <DataTable colonnes={cols} donnees={data} vide="Aucune contravention" />
+      <div className="mb-4">
+        <SearchSort
+          search={search} onSearch={setSearch}
+          placeholder="Rechercher (lieu, conducteur, nature...)"
+          sortKey={sortKey} sortDir={sortDir}
+          onSort={(k, d) => { setSortKey(k); setSortDir(d) }}
+          sortOptions={[
+            { value: 'date',    label: 'Date' },
+            { value: 'lieu',    label: 'Lieu' },
+            { value: 'montant', label: 'Montant' },
+            { value: 'statut',  label: 'Statut' },
+            { value: 'nature',  label: 'Nature' },
+          ]}
+        />
+      </div>
+      <DataTable colonnes={cols} donnees={filtered} vide="Aucune contravention" />
 
       {editData && (
         <Modal title="Modifier la contravention" onClose={() => setEditData(null)}>

@@ -27,7 +27,7 @@ export default function Layout({ children }) {
               <MdLocalShipping size={20} />
             </div>
             <div>
-              <p className="font-bold text-white text-sm leading-tight">PARCAUTO</p>
+              <p className="font-bold text-white text-sm leading-tight">SN-CFS Flotte</p>
               <p className="text-white/50 text-xs">Gestion de flotte</p>
             </div>
           </div>
