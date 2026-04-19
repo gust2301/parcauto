@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdDashboard, MdDirectionsCar, MdLogout, MdPerson, MdSettings } from 'react-icons/md'
-import logo from '../assets/sn-cfs-flotte-logo-only.png'
+import logo from '../assets/sn-cfs-flotte-favicon-transparent-large.png'
 
 const navItems = [
   { to: '/dashboard',  label: 'Tableau de bord', icon: MdDashboard },
