@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdAdd, MdArrowForward, MdEdit, MdDelete, MdCheck, MdClose } from 'react-icons/md'
 import SearchSort, { filterSort } from '../components/SearchSort'
+import Pagination, { paginate } from '../components/Pagination'
 
 const STATUT_CONFIG = {
   actif:   { label: 'Actif',    cls: 'bg-green-100 text-green-800' },
@@ -89,6 +90,8 @@ export default function Vehicules() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState('created_at')
   const [sortDir, setSortDir] = useState('desc')
+  const [page, setPage] = useState(1)
+  const PER_PAGE = 10
 
   useEffect(() => { load() }, [])
 
@@ -136,6 +139,7 @@ export default function Vehicules() {
   }
 
   const filtered = filterSort(vehicules, search, ['immatriculation', 'marque', 'modele', 'statut'], sortKey, sortDir)
+  const paginated = paginate(filtered, page, PER_PAGE)
 
   return (
     <div className="space-y-6">
@@ -149,10 +153,10 @@ export default function Vehicules() {
       {/* Recherche + tri */}
       <div className="card py-4">
         <SearchSort
-          search={search} onSearch={setSearch}
+          search={search} onSearch={v => { setSearch(v); setPage(1) }}
           placeholder="Rechercher (immatriculation, marque, modèle, statut...)"
           sortKey={sortKey} sortDir={sortDir}
-          onSort={(k, d) => { setSortKey(k); setSortDir(d) }}
+          onSort={(k, d) => { setSortKey(k); setSortDir(d); setPage(1) }}
           sortOptions={[
             { value: 'immatriculation', label: 'Immatriculation' },
             { value: 'marque', label: 'Marque' },
@@ -168,6 +172,7 @@ export default function Vehicules() {
         {loading ? (
           <div className="p-8 text-center text-gray-400">Chargement...</div>
         ) : (
+          <>
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
@@ -184,7 +189,7 @@ export default function Vehicules() {
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-gray-400 italic">Aucun véhicule</td>
                 </tr>
-              ) : filtered.map(v => {
+              ) : paginated.map(v => {
                 const sc = STATUT_CONFIG[v.statut] || STATUT_CONFIG.actif
                 return (
                   <tr key={v.id} className="hover:bg-blue-50 transition-colors">
@@ -237,6 +242,8 @@ export default function Vehicules() {
               })}
             </tbody>
           </table>
+          <Pagination total={filtered.length} page={page} perPage={PER_PAGE} onPage={setPage} />
+          </>
         )}
       </div>
 

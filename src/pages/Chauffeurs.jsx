@@ -7,6 +7,7 @@ import {
 } from 'react-icons/md'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import SearchSort, { filterSort } from '../components/SearchSort'
+import Pagination, { paginate } from '../components/Pagination'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -387,6 +388,8 @@ export default function Chauffeurs() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState('nom_complet')
   const [sortDir, setSortDir] = useState('asc')
+  const [page, setPage] = useState(1)
+  const PER_PAGE = 10
 
   useEffect(() => { loadAll() }, [])
 
@@ -493,48 +496,55 @@ export default function Chauffeurs() {
         {/* Liste chauffeurs */}
         <div className="col-span-2 space-y-3">
           <SearchSort
-            search={search} onSearch={setSearch}
+            search={search} onSearch={v => { setSearch(v); setPage(1) }}
             placeholder="Rechercher par nom, matricule, grade..."
             sortKey={sortKey} sortDir={sortDir}
-            onSort={(k, d) => { setSortKey(k); setSortDir(d) }}
+            onSort={(k, d) => { setSortKey(k); setSortDir(d); setPage(1) }}
             sortOptions={[
               { value: 'nom_complet', label: 'Nom' },
               { value: 'matricule', label: 'Matricule' },
               { value: 'grade', label: 'Grade' },
             ]}
           />
-          <div className="card p-0 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {['Nom complet', 'Matricule', 'Grade', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs text-gray-500 font-semibold uppercase">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filterSort(chauffeurs, search, ['nom_complet', 'matricule', 'grade'], sortKey, sortDir).map(c => (
-                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelected(c)}>
-                  <td className="px-4 py-3 font-medium text-[#1A3C6B]">{c.nom_complet}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.matricule || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.grade || '—'}</td>
-                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                    {confirmDel === c.id ? (
-                      <ConfirmDelete onConfirm={() => handleDelete(c.id)} onCancel={() => setConfirmDel(null)} />
-                    ) : (
-                      <button onClick={() => setConfirmDel(c.id)} className="p-1 text-red-400 hover:bg-red-50 rounded">
-                        <MdDelete size={16} />
-                      </button>
+          {(() => {
+            const filteredCh = filterSort(chauffeurs, search, ['nom_complet', 'matricule', 'grade'], sortKey, sortDir)
+            const paginatedCh = paginate(filteredCh, page, PER_PAGE)
+            return (
+              <div className="card p-0 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      {['Nom complet', 'Matricule', 'Grade', ''].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs text-gray-500 font-semibold uppercase">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {paginatedCh.map(c => (
+                      <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelected(c)}>
+                        <td className="px-4 py-3 font-medium text-[#1A3C6B]">{c.nom_complet}</td>
+                        <td className="px-4 py-3 text-gray-600">{c.matricule || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{c.grade || '—'}</td>
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                          {confirmDel === c.id ? (
+                            <ConfirmDelete onConfirm={() => handleDelete(c.id)} onCancel={() => setConfirmDel(null)} />
+                          ) : (
+                            <button onClick={() => setConfirmDel(c.id)} className="p-1 text-red-400 hover:bg-red-50 rounded">
+                              <MdDelete size={16} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredCh.length === 0 && (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400 italic">Aucun chauffeur enregistré</td></tr>
                     )}
-                  </td>
-                </tr>
-              ))}
-              {chauffeurs.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 italic">Aucun chauffeur enregistré</td></tr>
-              )}
-            </tbody>
-          </table>
-          </div>
+                  </tbody>
+                </table>
+                <Pagination total={filteredCh.length} page={page} perPage={PER_PAGE} onPage={setPage} />
+              </div>
+            )
+          })()}
         </div>
 
         {/* Stats infractions */}

@@ -1,4 +1,15 @@
-export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée' }) {
+import { useState, useEffect } from 'react'
+import Pagination, { paginate } from './Pagination'
+
+export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée', perPage = 10 }) {
+  const [page, setPage] = useState(1)
+
+  // Remet à la page 1 quand les données changent (recherche / tri)
+  const dataKey = donnees.length + '-' + (donnees[0]?.id ?? donnees[0]?.date ?? '')
+  useEffect(() => { setPage(1) }, [dataKey])
+
+  const paginatedData = paginate(donnees, page, perPage)
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -19,7 +30,7 @@ export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée' }
               </td>
             </tr>
           ) : (
-            donnees.map((row, i) => (
+            paginatedData.map((row, i) => (
               <tr key={i} className="hover:bg-gray-50 transition-colors">
                 {colonnes.map((col, j) => (
                   <td key={j} className="px-4 py-3 text-gray-700 whitespace-nowrap">
@@ -31,6 +42,7 @@ export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée' }
           )}
         </tbody>
       </table>
+      <Pagination total={donnees.length} page={page} perPage={perPage} onPage={setPage} />
     </div>
   )
 }
