@@ -534,6 +534,7 @@ export default function Chauffeurs() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Stats infractions */}
