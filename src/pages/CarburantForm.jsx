@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdArrowBack } from 'react-icons/md'
+import { AdminRequiredMessage } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 const TYPES_CARBURANT = ['Gasoil', 'Essence', 'Autre']
 
@@ -22,6 +24,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
   const navigateHook = useNavigate()
   const id = editData ? editData.vehicule_id : params.id
   const isModal = !!editData
+  const { isAdmin } = useRole()
 
   const [kmVehicule, setKmVehicule] = useState(0)
   const [form, setForm] = useState(() => getInitialForm(editData))
@@ -39,6 +42,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!isAdmin) return
     if (!editData && form.kilometrage && parseInt(form.kilometrage) < kmVehicule) {
       setError(`Le kilométrage saisi (${parseInt(form.kilometrage).toLocaleString('fr-FR')} km) est inférieur au kilométrage actuel du véhicule (${kmVehicule.toLocaleString('fr-FR')} km).`)
       return
@@ -140,6 +144,15 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
         </button>
       </div>
     </form>
+  )
+
+  if (!isAdmin) return isModal ? <AdminRequiredMessage /> : (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigateHook(`/vehicules/${id}?tab=carburant`)}>
+        <MdArrowBack size={16} /> Retour au vÃ©hicule
+      </button>
+      <AdminRequiredMessage />
+    </div>
   )
 
   if (isModal) return content

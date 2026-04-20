@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabaseAdmin } from '../lib/supabaseAdmin'
 import { MdPersonAdd, MdPerson, MdEmail } from 'react-icons/md'
+import { ROLES, getUserRole } from '../lib/roles'
 
 export default function Settings() {
-  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' })
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '', role: ROLES.USER })
   const [saving, setSaving] = useState(false)
+  const [savingRole, setSavingRole] = useState(null)
   const [message, setMessage] = useState(null)
   const [users, setUsers] = useState([])
 
@@ -46,13 +48,32 @@ export default function Settings() {
       email: form.email,
       password: form.password,
       email_confirm: true,
+      app_metadata: { role: form.role },
+      user_metadata: { role: form.role },
     })
     setSaving(false)
     if (error) {
       setMessage({ type: 'error', text: error.message })
     } else {
       setMessage({ type: 'success', text: `Utilisateur ${form.email} créé avec succès.` })
-      setForm({ email: '', password: '', confirmPassword: '' })
+      setForm({ email: '', password: '', confirmPassword: '', role: ROLES.USER })
+      loadUsers()
+    }
+  }
+
+  async function handleRoleChange(user, role) {
+    if (!hasAdmin) return
+    setSavingRole(user.id)
+    setMessage(null)
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      app_metadata: { ...(user.app_metadata || {}), role },
+      user_metadata: { ...(user.user_metadata || {}), role },
+    })
+    setSavingRole(null)
+    if (error) {
+      setMessage({ type: 'error', text: error.message })
+    } else {
+      setMessage({ type: 'success', text: `Role de ${user.email} mis a jour.` })
       loadUsers()
     }
   }
@@ -126,6 +147,18 @@ export default function Settings() {
               />
             </div>
           </div>
+          <div>
+            <label className="form-label">Role *</label>
+            <select
+              className="form-input"
+              value={form.role}
+              onChange={e => set('role', e.target.value)}
+              disabled={!hasAdmin}
+            >
+              <option value={ROLES.USER}>Utilisateur</option>
+              <option value={ROLES.ADMIN}>Admin</option>
+            </select>
+          </div>
           <div className="pt-2">
             <button
               type="submit"
@@ -154,17 +187,28 @@ export default function Settings() {
           ) : (
             <div className="divide-y divide-gray-100">
               {users.map(u => (
-              <div key={u.id} className="flex items-start gap-3 py-3">
-                  <div className="w-8 h-8 rounded-full bg-[#1A3C6B]/10 flex items-center justify-center">
-                    <MdEmail size={16} className="text-[#1A3C6B]" />
+                <div key={u.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-[#1A3C6B]/10 flex items-center justify-center">
+                      <MdEmail size={16} className="text-[#1A3C6B]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{u.email}</p>
+                      <p className="text-xs text-gray-400">
+                        Créé le {new Date(u.created_at).toLocaleDateString('fr-FR')}
+                        {u.last_sign_in_at && ` · Dernière connexion : ${new Date(u.last_sign_in_at).toLocaleDateString('fr-FR')}`}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{u.email}</p>
-                    <p className="text-xs text-gray-400">
-                      Créé le {new Date(u.created_at).toLocaleDateString('fr-FR')}
-                      {u.last_sign_in_at && ` · Dernière connexion : ${new Date(u.last_sign_in_at).toLocaleDateString('fr-FR')}`}
-                    </p>
-                  </div>
+                  <select
+                    className="form-input w-full text-sm sm:w-36"
+                    value={getUserRole(u)}
+                    onChange={e => handleRoleChange(u, e.target.value)}
+                    disabled={savingRole === u.id}
+                  >
+                    <option value={ROLES.USER}>Utilisateur</option>
+                    <option value={ROLES.ADMIN}>Admin</option>
+                  </select>
                 </div>
               ))}
               {users.length === 0 && (

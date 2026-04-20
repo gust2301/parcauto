@@ -6,6 +6,8 @@ import SearchSort from '../components/SearchSort'
 import { filterSort } from '../lib/searchSort'
 import Pagination from '../components/Pagination'
 import { getTotalPages, paginate } from '../lib/pagination'
+import { AdminOnly } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 const STATUT_CONFIG = {
   actif:   { label: 'Actif',    cls: 'bg-green-100 text-green-800' },
@@ -83,6 +85,7 @@ function VehiculeForm({ initial, onSave, onCancel, saving }) {
 
 export default function Vehicules() {
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [vehicules, setVehicules] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)   // ajout
@@ -105,6 +108,7 @@ export default function Vehicules() {
   }
 
   async function handleCreate(form) {
+    if (!isAdmin) return
     setSaving(true)
     await supabase.from('vehicules').insert({
       immatriculation: form.immatriculation,
@@ -120,6 +124,7 @@ export default function Vehicules() {
   }
 
   async function handleEdit(form) {
+    if (!isAdmin) return
     setSaving(true)
     await supabase.from('vehicules').update({
       immatriculation: form.immatriculation,
@@ -135,6 +140,7 @@ export default function Vehicules() {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin) return
     await supabase.from('vehicules').delete().eq('id', id)
     setConfirmDel(null)
     load()
@@ -148,9 +154,11 @@ export default function Vehicules() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Véhicules</h1>
-        <button className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto" onClick={() => setShowModal(true)}>
-          <MdAdd size={18} /> Ajouter un véhicule
-        </button>
+        <AdminOnly>
+          <button className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto" onClick={() => setShowModal(true)}>
+            <MdAdd size={18} /> Ajouter un véhicule
+          </button>
+        </AdminOnly>
       </div>
 
       {/* Recherche + tri */}
@@ -226,18 +234,22 @@ export default function Vehicules() {
                             onClick={() => navigate(`/vehicules/${v.id}`)}>
                             Voir <MdArrowForward size={14} />
                           </button>
-                          <button
-                            className="p-1 text-[#1A3C6B] hover:bg-blue-50 rounded"
-                            title="Modifier"
-                            onClick={() => setEditVehicule(v)}>
-                            <MdEdit size={16} />
-                          </button>
-                          <button
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
-                            title="Supprimer"
-                            onClick={() => setConfirmDel(v.id)}>
-                            <MdDelete size={16} />
-                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                className="p-1 text-[#1A3C6B] hover:bg-blue-50 rounded"
+                                title="Modifier"
+                                onClick={() => setEditVehicule(v)}>
+                                <MdEdit size={16} />
+                              </button>
+                              <button
+                                className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                title="Supprimer"
+                                onClick={() => setConfirmDel(v.id)}>
+                                <MdDelete size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </td>

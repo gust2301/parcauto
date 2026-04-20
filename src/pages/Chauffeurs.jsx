@@ -10,6 +10,8 @@ import SearchSort from '../components/SearchSort'
 import { filterSort } from '../lib/searchSort'
 import Pagination from '../components/Pagination'
 import { getTotalPages, paginate } from '../lib/pagination'
+import { AdminOnly } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -45,6 +47,7 @@ function Modal({ title, onClose, children }) {
 
 // ── Fiche détail chauffeur ───────────────────────────────────────────────────
 function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
+  const { isAdmin } = useRole()
   const [deplacements, setDeplacements] = useState([])
   const [contraventions, setContraventions] = useState([])
   const [showFormDep, setShowFormDep] = useState(false)
@@ -80,6 +83,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
   }
 
   async function saveInfo() {
+    if (!isAdmin) return
     await supabase.from('chauffeurs').update({
       nom_complet: formInfo.nom_complet,
       matricule: formInfo.matricule || null,
@@ -91,6 +95,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
 
   async function saveDep(e) {
     e.preventDefault()
+    if (!isAdmin) return
     setSaving(true)
     const payload = {
       chauffeur_id: chauffeur.id,
@@ -113,6 +118,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
   }
 
   async function deleteDep(id) {
+    if (!isAdmin) return
     await supabase.from('deplacements').delete().eq('id', id)
     setConfirmDel(null)
     loadAll()
@@ -181,7 +187,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
               </div>
             )}
           </div>
-          {!editingInfo && (
+          {!editingInfo && isAdmin && (
             <button className="print:hidden text-sm text-[#1A3C6B] underline hover:no-underline" onClick={() => setEditingInfo(true)}>Modifier</button>
           )}
         </div>
@@ -207,13 +213,15 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
       <div className="card">
         <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-semibold text-gray-800">Déplacements</h2>
-          <button className="btn-primary flex w-full items-center justify-center gap-2 text-sm sm:w-auto"
-            onClick={() => { setEditingDep(null); setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' }); setShowFormDep(true) }}>
-            <MdAdd size={16} /> Nouveau déplacement
-          </button>
+          <AdminOnly>
+            <button className="btn-primary flex w-full items-center justify-center gap-2 text-sm sm:w-auto"
+              onClick={() => { setEditingDep(null); setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' }); setShowFormDep(true) }}>
+              <MdAdd size={16} /> Nouveau déplacement
+            </button>
+          </AdminOnly>
         </div>
 
-        {showFormDep && (
+        {showFormDep && isAdmin && (
           <form onSubmit={saveDep} className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
             <p className="text-sm font-medium text-gray-700 mb-3">{editingDep ? 'Modifier le déplacement' : 'Nouveau déplacement'}</p>
             <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-3">
@@ -305,14 +313,14 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
                       </span>
                     </td>
                     <td className="px-4 py-2">
-                      {confirmDel === d.id ? (
+                      {isAdmin && (confirmDel === d.id ? (
                         <ConfirmDelete onConfirm={() => deleteDep(d.id)} onCancel={() => setConfirmDel(null)} />
                       ) : (
                         <div className="flex items-center gap-1">
                           <button onClick={() => startEditDep(d)} className="p-1 text-[#1A3C6B] hover:bg-blue-50 rounded"><MdEdit size={16} /></button>
                           <button onClick={() => setConfirmDel(d.id)} className="p-1 text-red-500 hover:bg-red-50 rounded"><MdDelete size={16} /></button>
                         </div>
-                      )}
+                      ))}
                     </td>
                   </tr>
                 )
@@ -378,6 +386,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
 
 // ── Page principale Chauffeurs ───────────────────────────────────────────────
 export default function Chauffeurs() {
+  const { isAdmin } = useRole()
   const [chauffeurs, setChauffeurs] = useState([])
   const [vehicules, setVehicules] = useState([])
   const [selected, setSelected] = useState(null)
@@ -433,6 +442,7 @@ export default function Chauffeurs() {
 
   async function handleCreate(e) {
     e.preventDefault()
+    if (!isAdmin) return
     setSaving(true)
     await supabase.from('chauffeurs').insert({
       nom_complet: form.nom_complet,
@@ -446,6 +456,7 @@ export default function Chauffeurs() {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin) return
     await supabase.from('chauffeurs').delete().eq('id', id)
     setConfirmDel(null)
     if (selected?.id === id) setSelected(null)
@@ -469,13 +480,15 @@ export default function Chauffeurs() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Chauffeurs</h1>
-        <button className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto" onClick={() => setShowForm(v => !v)}>
-          <MdAdd size={18} /> Nouveau chauffeur
-        </button>
+        <AdminOnly>
+          <button className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto" onClick={() => setShowForm(v => !v)}>
+            <MdAdd size={18} /> Nouveau chauffeur
+          </button>
+        </AdminOnly>
       </div>
 
       {/* Formulaire d'ajout */}
-      {showForm && (
+      {showForm && isAdmin && (
         <div className="card">
           <h2 className="text-base font-semibold text-gray-800 mb-4">Nouveau chauffeur</h2>
           <form onSubmit={handleCreate} className="space-y-4">
@@ -536,13 +549,13 @@ export default function Chauffeurs() {
                         <td className="px-4 py-3 text-gray-600">{c.matricule || '—'}</td>
                         <td className="px-4 py-3 text-gray-600">{c.grade || '—'}</td>
                         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                          {confirmDel === c.id ? (
+                          {isAdmin && (confirmDel === c.id ? (
                             <ConfirmDelete onConfirm={() => handleDelete(c.id)} onCancel={() => setConfirmDel(null)} />
                           ) : (
                             <button onClick={() => setConfirmDel(c.id)} className="p-1 text-red-400 hover:bg-red-50 rounded">
                               <MdDelete size={16} />
                             </button>
-                          )}
+                          ))}
                         </td>
                       </tr>
                     ))}

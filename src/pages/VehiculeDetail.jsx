@@ -15,6 +15,8 @@ import CarburantForm from './CarburantForm'
 import ContraventionForm from './ContraventionForm'
 import SearchSort from '../components/SearchSort'
 import { filterSort } from '../lib/searchSort'
+import { AdminOnly } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -49,7 +51,9 @@ function ConfirmDelete({ onConfirm, onCancel }) {
 
 // ── Boutons actions ──────────────────────────────────────────────────────────
 function ActionBtns({ onEdit, onDelete }) {
+  const { isAdmin } = useRole()
   const [confirming, setConfirming] = useState(false)
+  if (!isAdmin) return null
   if (confirming) {
     return <ConfirmDelete onConfirm={onDelete} onCancel={() => setConfirming(false)} />
   }
@@ -85,6 +89,7 @@ function Modal({ title, onClose, children }) {
 // ── Onglet Entretiens ────────────────────────────────────────────────────────
 function OngletEntretiens({ vehiculeId }) {
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [data, setData] = useState([])
   const [editing, setEditing] = useState(null)
   const [editForm, setEditForm] = useState({})
@@ -102,11 +107,13 @@ function OngletEntretiens({ vehiculeId }) {
   }
 
   function startEdit(r) {
+    if (!isAdmin) return
     setEditing(r.id)
     setEditForm({ ...r })
   }
 
   async function saveEdit() {
+    if (!isAdmin) return
     setSaving(true)
     await supabase.from('entretiens').update({
       date: editForm.date,
@@ -123,6 +130,7 @@ function OngletEntretiens({ vehiculeId }) {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin) return
     await supabase.from('entretiens').delete().eq('id', id)
     load()
   }
@@ -148,9 +156,11 @@ function OngletEntretiens({ vehiculeId }) {
         <button className="print:hidden btn-secondary flex items-center gap-2 text-sm" onClick={() => window.print()}>
           <MdPrint size={16} /> Imprimer
         </button>
-        <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/entretien/new`)}>
-          <MdAdd size={18} /> Ajouter un entretien
-        </button>
+        <AdminOnly>
+          <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/entretien/new`)}>
+            <MdAdd size={18} /> Ajouter un entretien
+          </button>
+        </AdminOnly>
       </div>
       <div className="mb-4">
         <SearchSort
@@ -222,6 +232,7 @@ const MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oc
 
 function OngletCarburant({ vehiculeId }) {
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [data, setData] = useState([])
   const [vue, setVue] = useState('pleins')
   const [annee, setAnnee] = useState(new Date().getFullYear())
@@ -239,6 +250,7 @@ function OngletCarburant({ vehiculeId }) {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin) return
     await supabase.from('carburant').delete().eq('id', id)
     load()
   }
@@ -307,9 +319,11 @@ function OngletCarburant({ vehiculeId }) {
             <button onClick={() => setVue('pleins')} className={`px-3 py-1.5 ${vue === 'pleins' ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Pleins</button>
             <button onClick={() => setVue('stats')}  className={`px-3 py-1.5 ${vue === 'stats'  ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Suivi mensuel</button>
           </div>
-          <button className="btn-primary flex items-center justify-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/carburant/new`)}>
-            <MdAdd size={18} /> Ajouter un plein
-          </button>
+          <AdminOnly>
+            <button className="btn-primary flex items-center justify-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/carburant/new`)}>
+              <MdAdd size={18} /> Ajouter un plein
+            </button>
+          </AdminOnly>
         </div>
       </div>
 
@@ -429,6 +443,7 @@ function OngletCarburant({ vehiculeId }) {
 
 // ── Onglet Documents ─────────────────────────────────────────────────────────
 function OngletDocuments({ vehiculeId }) {
+  const { isAdmin } = useRole()
   const [visite, setVisite] = useState(null)
   const [editingVisite, setEditingVisite] = useState(false)
   const [formVisite, setFormVisite] = useState({ date_realisation: '', date_echeance: '' })
@@ -457,6 +472,7 @@ function OngletDocuments({ vehiculeId }) {
   }
 
   async function handleSaveVisite() {
+    if (!isAdmin) return
     setSavingVisite(true)
     const payload = { vehicule_id: vehiculeId, type: 'visite_technique', date_realisation: formVisite.date_realisation || null, date_echeance: formVisite.date_echeance || null }
     if (visite) await supabase.from('documents').update(payload).eq('id', visite.id)
@@ -468,6 +484,7 @@ function OngletDocuments({ vehiculeId }) {
 
   async function handleSaveAssurance(e) {
     e.preventDefault()
+    if (!isAdmin) return
     setSavingAssurance(true)
     const payload = {
       vehicule_id: vehiculeId,
@@ -490,11 +507,13 @@ function OngletDocuments({ vehiculeId }) {
   }
 
   async function handleDeleteAssurance(id) {
+    if (!isAdmin) return
     await supabase.from('assurances').delete().eq('id', id)
     load()
   }
 
   function startEditAssurance(a) {
+    if (!isAdmin) return
     setEditingAssurance(a.id)
     setFormAssurance({
       date_debut: a.date_debut || '',
@@ -529,13 +548,15 @@ function OngletDocuments({ vehiculeId }) {
             {assuranceActive && <AlerteBadge dateEcheance={assuranceActive.date_echeance} />}
             {assuranceActive && <span className="text-xs text-gray-400">Échéance : {fmtDate(assuranceActive.date_echeance)}</span>}
           </div>
-          <button className="btn-primary flex items-center justify-center gap-1 py-1.5 text-xs"
-            onClick={() => { setEditingAssurance(null); setFormAssurance({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' }); setShowFormAssurance(v => !v) }}>
-            <MdAdd size={16} /> Nouveau contrat
-          </button>
+          <AdminOnly>
+            <button className="btn-primary flex items-center justify-center gap-1 py-1.5 text-xs"
+              onClick={() => { setEditingAssurance(null); setFormAssurance({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' }); setShowFormAssurance(v => !v) }}>
+              <MdAdd size={16} /> Nouveau contrat
+            </button>
+          </AdminOnly>
         </div>
 
-        {showFormAssurance && (
+        {showFormAssurance && isAdmin && (
           <form onSubmit={handleSaveAssurance} className="p-4 bg-blue-50 border-b border-gray-200">
             <p className="text-sm font-medium text-gray-700 mb-3">{editingAssurance ? 'Modifier le contrat' : 'Nouveau contrat'}</p>
             <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-3">
@@ -594,12 +615,14 @@ function OngletDocuments({ vehiculeId }) {
             {visite?.date_echeance && <AlerteBadge dateEcheance={visite.date_echeance} />}
             {!visite && <span className="text-xs text-gray-400 italic">Non renseigné</span>}
           </div>
-          <button className="text-sm text-[#1A3C6B] underline hover:no-underline" onClick={() => {
-            setEditingVisite(v => !v)
-            setFormVisite({ date_realisation: visite?.date_realisation || '', date_echeance: visite?.date_echeance || '' })
-          }}>
-            {editingVisite ? 'Annuler' : (visite ? 'Modifier' : 'Renseigner')}
-          </button>
+          <AdminOnly>
+            <button className="text-sm text-[#1A3C6B] underline hover:no-underline" onClick={() => {
+              setEditingVisite(v => !v)
+              setFormVisite({ date_realisation: visite?.date_realisation || '', date_echeance: visite?.date_echeance || '' })
+            }}>
+              {editingVisite ? 'Annuler' : (visite ? 'Modifier' : 'Renseigner')}
+            </button>
+          </AdminOnly>
         </div>
 
         {!editingVisite && visite && (
@@ -609,7 +632,7 @@ function OngletDocuments({ vehiculeId }) {
           </div>
         )}
 
-        {editingVisite && (
+        {editingVisite && isAdmin && (
           <div className="flex flex-col gap-4 mt-2 sm:flex-row sm:items-end">
             <div>
               <label className="form-label">Date de réalisation</label>
@@ -630,6 +653,7 @@ function OngletDocuments({ vehiculeId }) {
 // ── Onglet Contraventions ────────────────────────────────────────────────────
 function OngletContraventions({ vehiculeId }) {
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [data, setData] = useState([])
   const [editData, setEditData] = useState(null)
   const [search, setSearch] = useState('')
@@ -645,6 +669,7 @@ function OngletContraventions({ vehiculeId }) {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin) return
     await supabase.from('contraventions').delete().eq('id', id)
     load()
   }
@@ -678,9 +703,11 @@ function OngletContraventions({ vehiculeId }) {
         <button className="print:hidden btn-secondary flex items-center gap-2 text-sm" onClick={() => window.print()}>
           <MdPrint size={16} /> Imprimer
         </button>
-        <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/contravention/new`)}>
-          <MdAdd size={18} /> Ajouter une contravention
-        </button>
+        <AdminOnly>
+          <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/contravention/new`)}>
+            <MdAdd size={18} /> Ajouter une contravention
+          </button>
+        </AdminOnly>
       </div>
       <div className="mb-4">
         <SearchSort
@@ -716,6 +743,7 @@ function OngletContraventions({ vehiculeId }) {
 export default function VehiculeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [searchParams] = useSearchParams()
   const [vehicule, setVehicule] = useState(null)
   const tabParam = searchParams.get('tab')
@@ -737,12 +765,14 @@ export default function VehiculeDetail() {
   }
 
   async function updateStatut() {
+    if (!isAdmin) return
     await supabase.from('vehicules').update({ statut: newStatut }).eq('id', id)
     setEditingStatut(false)
     load()
   }
 
   async function updateKm() {
+    if (!isAdmin) return
     await supabase.from('vehicules').update({ kilometrage: parseInt(newKm) }).eq('id', id)
     setEditingKm(false)
     load()
@@ -770,7 +800,7 @@ export default function VehiculeDetail() {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold text-[#1A3C6B]">{vehicule.immatriculation}</h1>
-              {editingStatut ? (
+              {editingStatut && isAdmin ? (
                 <div className="flex items-center gap-2 print:hidden">
                   <select className="form-input w-36 text-xs" value={newStatut} onChange={e => setNewStatut(e.target.value)}>
                     <option value="actif">Actif</option>
@@ -782,9 +812,9 @@ export default function VehiculeDetail() {
                 </div>
               ) : (
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer print:cursor-default ${sc.cls}`}
-                  onClick={() => { setNewStatut(vehicule.statut); setEditingStatut(true) }}
-                  title="Cliquer pour modifier">
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${isAdmin ? 'cursor-pointer' : ''} print:cursor-default ${sc.cls}`}
+                  onClick={() => { if (isAdmin) { setNewStatut(vehicule.statut); setEditingStatut(true) } }}
+                  title={isAdmin ? 'Cliquer pour modifier' : undefined}>
                   {sc.label}
                 </span>
               )}
@@ -794,16 +824,16 @@ export default function VehiculeDetail() {
             </p>
           </div>
           <div className="text-right">
-            {editingKm ? (
+            {editingKm && isAdmin ? (
               <div className="flex items-center gap-2 print:hidden">
                 <input type="number" className="form-input w-32 text-sm" value={newKm} onChange={e => setNewKm(e.target.value)} />
                 <button className="text-xs btn-primary py-1" onClick={updateKm}>OK</button>
                 <button className="text-xs btn-secondary py-1" onClick={() => setEditingKm(false)}>×</button>
               </div>
             ) : (
-              <div className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 text-right print:cursor-default"
-                onClick={() => { setNewKm(vehicule.kilometrage); setEditingKm(true) }}
-                title="Cliquer pour modifier">
+              <div className={`${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''} rounded-lg p-2 text-right print:cursor-default`}
+                onClick={() => { if (isAdmin) { setNewKm(vehicule.kilometrage); setEditingKm(true) } }}
+                title={isAdmin ? 'Cliquer pour modifier' : undefined}>
                 <p className="text-2xl font-bold text-gray-800">{fmtNum(vehicule.kilometrage)} km</p>
                 <p className="text-xs text-gray-400">Kilométrage actuel</p>
               </div>
