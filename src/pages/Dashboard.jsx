@@ -8,12 +8,15 @@ import { format, parseISO, differenceInDays, startOfMonth, endOfMonth, startOfYe
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts'
+import Pagination from '../components/Pagination'
+import { getTotalPages, paginate } from '../lib/pagination'
 
 function fmt(n) { return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA' }
 function fmtDate(d) { if (!d) return '—'; return format(parseISO(d), 'dd/MM/yyyy') }
 
 const FILTRE_OPTIONS = ['Tout', 'Carburant', 'Assurance', 'Contravention']
 const COLORS_VEHICULE = ['#1A3C6B','#2563eb','#0891b2','#059669','#7c3aed','#db2777','#ea580c']
+const CARD_PAGE_SIZE = 5
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -22,6 +25,8 @@ export default function Dashboard() {
   const [coutParVehicule, setCoutParVehicule] = useState([])
   const [filtreVehicule, setFiltreVehicule] = useState('Tout')
   const [deplacements, setDeplacements] = useState([])
+  const [alertesPage, setAlertesPage] = useState(1)
+  const [deplacementsPage, setDeplacementsPage] = useState(1)
   const [loading, setLoading] = useState(true)
 
   async function loadAll() {
@@ -57,7 +62,7 @@ export default function Dashboard() {
       supabase.from('contraventions').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
       supabase.from('assurances').select('montant').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
       supabase.from('carburant').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
-      supabase.from('deplacements').select('*, chauffeurs(nom_complet), vehicules(immatriculation)').order('date', { ascending: false }).limit(20),
+      supabase.from('deplacements').select('*, chauffeurs(nom_complet), vehicules(immatriculation)').order('date', { ascending: false }).limit(100),
     ])
 
     const actifs = (vehicules || []).filter(v => v.statut === 'actif').length
@@ -110,6 +115,10 @@ export default function Dashboard() {
   useEffect(() => { Promise.resolve().then(loadAll) }, [])
 
   const typeLabel = { assurance: 'Assurance', visite_technique: 'Visite technique' }
+  const currentAlertesPage = Math.min(alertesPage, getTotalPages(alertesDocs.length, CARD_PAGE_SIZE))
+  const currentDeplacementsPage = Math.min(deplacementsPage, getTotalPages(deplacements.length, CARD_PAGE_SIZE))
+  const paginatedAlertes = paginate(alertesDocs, currentAlertesPage, CARD_PAGE_SIZE)
+  const paginatedDeplacements = paginate(deplacements, currentDeplacementsPage, CARD_PAGE_SIZE)
 
   // Données graphe selon filtre
   const graphData = coutParVehicule.map(v => {
@@ -153,7 +162,7 @@ export default function Dashboard() {
             <p className="text-gray-400 text-sm italic text-center py-4">Aucune alerte</p>
           ) : (
             <div className="space-y-2">
-              {alertesDocs.map(d => (
+              {paginatedAlertes.map(d => (
                 <div key={d.id}
                   className="flex flex-col gap-2 py-2 border-b border-gray-100 last:border-0 hover:bg-blue-50 rounded-lg px-2 cursor-pointer transition-colors sm:flex-row sm:items-center sm:justify-between"
                   onClick={() => navigate(`/vehicules/${d.vehicule_id}?tab=documents`)}>
@@ -169,6 +178,12 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          <Pagination
+            total={alertesDocs.length}
+            page={currentAlertesPage}
+            perPage={CARD_PAGE_SIZE}
+            onPage={setAlertesPage}
+          />
         </div>
 
         {/* Déplacements chauffeurs */}
@@ -196,7 +211,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {deplacements.map(d => {
+                  {paginatedDeplacements.map(d => {
                     const total = (d.nombre_jours || 1) * (d.montant_journalier || 0)
                     const isPaye = d.status === 'paye'
                     return (
@@ -220,6 +235,12 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+          <Pagination
+            total={deplacements.length}
+            page={currentDeplacementsPage}
+            perPage={CARD_PAGE_SIZE}
+            onPage={setDeplacementsPage}
+          />
         </div>
       </div>
 

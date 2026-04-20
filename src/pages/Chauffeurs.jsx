@@ -392,11 +392,15 @@ export default function Chauffeurs() {
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
+  const [statsPage, setStatsPage] = useState(1)
+  const STATS_PER_PAGE = 5
 
   useEffect(() => { loadAll() }, [])
 
   const filteredChauffeurs = filterSort(chauffeurs, search, ['nom_complet', 'matricule', 'grade'], sortKey, sortDir)
   const currentPage = Math.min(page, getTotalPages(filteredChauffeurs.length, perPage))
+  const currentStatsPage = Math.min(statsPage, getTotalPages(stats.length, STATS_PER_PAGE))
+  const paginatedStats = paginate(stats, currentStatsPage, STATS_PER_PAGE)
 
   async function loadAll() {
     setLoading(true)
@@ -578,13 +582,19 @@ export default function Chauffeurs() {
                 </BarChart>
               </ResponsiveContainer>
               <div className="mt-3 divide-y divide-gray-100">
-                {stats.map(s => (
+                {paginatedStats.map(s => (
                   <div key={s.nom} className="flex justify-between py-2 text-xs">
                     <span className="text-gray-700 font-medium truncate">{s.nom}</span>
                     <span className="text-gray-500">{s.count} infraction{s.count > 1 ? 's' : ''} · {fmtNum(s.montant)} FCFA</span>
                   </div>
                 ))}
               </div>
+              <Pagination
+                total={stats.length}
+                page={currentStatsPage}
+                perPage={STATS_PER_PAGE}
+                onPage={setStatsPage}
+              />
             </>
           ) : (
             <p className="text-gray-400 text-sm italic">Aucune infraction liée aux chauffeurs</p>
