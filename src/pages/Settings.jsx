@@ -7,13 +7,12 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
   const [users, setUsers] = useState([])
-  const [loadingUsers, setLoadingUsers] = useState(true)
 
   const hasAdmin = !!supabaseAdmin
+  const [loadingUsers, setLoadingUsers] = useState(hasAdmin)
 
   useEffect(() => {
     if (hasAdmin) loadUsers()
-    else setLoadingUsers(false)
   }, [])
 
   async function loadUsers() {
@@ -101,7 +100,7 @@ export default function Settings() {
               disabled={!hasAdmin}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="form-label">Mot de passe *</label>
               <input
@@ -155,11 +154,11 @@ export default function Settings() {
           ) : (
             <div className="divide-y divide-gray-100">
               {users.map(u => (
-                <div key={u.id} className="flex items-center gap-3 py-3">
+              <div key={u.id} className="flex items-start gap-3 py-3">
                   <div className="w-8 h-8 rounded-full bg-[#1A3C6B]/10 flex items-center justify-center">
                     <MdEmail size={16} className="text-[#1A3C6B]" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800">{u.email}</p>
                     <p className="text-xs text-gray-400">
                       Créé le {new Date(u.created_at).toLocaleDateString('fr-FR')}

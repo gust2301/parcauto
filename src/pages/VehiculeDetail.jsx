@@ -13,7 +13,8 @@ import {
 } from 'react-icons/md'
 import CarburantForm from './CarburantForm'
 import ContraventionForm from './ContraventionForm'
-import SearchSort, { filterSort } from '../components/SearchSort'
+import SearchSort from '../components/SearchSort'
+import { filterSort } from '../lib/searchSort'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -171,7 +172,7 @@ function OngletEntretiens({ vehiculeId }) {
       {editing && (
         <Modal title="Modifier l'entretien" onClose={() => setEditing(null)}>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="form-label">Date</label>
                 <input type="date" className="form-input" value={editForm.date || ''} onChange={e => setEditForm(f => ({...f, date: e.target.value}))} />
@@ -181,7 +182,7 @@ function OngletEntretiens({ vehiculeId }) {
                 <input type="text" className="form-input" value={editForm.type_intervention || ''} onChange={e => setEditForm(f => ({...f, type_intervention: e.target.value}))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="form-label">Pièces</label>
                 <input type="text" className="form-input" value={editForm.pieces || ''} onChange={e => setEditForm(f => ({...f, pieces: e.target.value}))} />
@@ -191,7 +192,7 @@ function OngletEntretiens({ vehiculeId }) {
                 <input type="number" className="form-input" value={editForm.cout || ''} onChange={e => setEditForm(f => ({...f, cout: e.target.value}))} min="0" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="form-label">Garage</label>
                 <input type="text" className="form-input" value={editForm.garage || ''} onChange={e => setEditForm(f => ({...f, garage: e.target.value}))} />
@@ -292,13 +293,13 @@ function OngletCarburant({ vehiculeId }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-4 text-sm">
+      <div className="flex flex-col gap-4 mb-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-wrap gap-3 text-sm">
           <span className="text-gray-500">Total : <span className="font-bold text-[#1A3C6B]">{totalLitres.toFixed(1)} L</span></span>
           {totalMontant > 0 && <span className="text-gray-500">Coût : <span className="font-bold text-[#1A3C6B]">{fmtNum(totalMontant)} FCFA</span></span>}
           {moyenneConso && <span className="text-gray-500">Conso moy. : <span className="font-bold text-[#1A3C6B]">{moyenneConso} L/100</span></span>}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button className="print:hidden btn-secondary flex items-center gap-1 text-sm py-1.5" onClick={() => window.print()}>
             <MdPrint size={16} /> Imprimer
           </button>
@@ -306,7 +307,7 @@ function OngletCarburant({ vehiculeId }) {
             <button onClick={() => setVue('pleins')} className={`px-3 py-1.5 ${vue === 'pleins' ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Pleins</button>
             <button onClick={() => setVue('stats')}  className={`px-3 py-1.5 ${vue === 'stats'  ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Suivi mensuel</button>
           </div>
-          <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/carburant/new`)}>
+          <button className="btn-primary flex items-center justify-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/carburant/new`)}>
             <MdAdd size={18} /> Ajouter un plein
           </button>
         </div>
@@ -377,6 +378,7 @@ function OngletCarburant({ vehiculeId }) {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
@@ -408,6 +410,7 @@ function OngletCarburant({ vehiculeId }) {
               </tr>
             </tfoot>
           </table>
+          </div>
         </div>
       )}
 
@@ -520,13 +523,13 @@ function OngletDocuments({ vehiculeId }) {
     <div className="space-y-6">
       {/* Assurance */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
             <h3 className="font-semibold text-gray-800">Assurance</h3>
             {assuranceActive && <AlerteBadge dateEcheance={assuranceActive.date_echeance} />}
             {assuranceActive && <span className="text-xs text-gray-400">Échéance : {fmtDate(assuranceActive.date_echeance)}</span>}
           </div>
-          <button className="btn-primary flex items-center gap-1 py-1.5 text-xs"
+          <button className="btn-primary flex items-center justify-center gap-1 py-1.5 text-xs"
             onClick={() => { setEditingAssurance(null); setFormAssurance({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' }); setShowFormAssurance(v => !v) }}>
             <MdAdd size={16} /> Nouveau contrat
           </button>
@@ -535,7 +538,7 @@ function OngletDocuments({ vehiculeId }) {
         {showFormAssurance && (
           <form onSubmit={handleSaveAssurance} className="p-4 bg-blue-50 border-b border-gray-200">
             <p className="text-sm font-medium text-gray-700 mb-3">{editingAssurance ? 'Modifier le contrat' : 'Nouveau contrat'}</p>
-            <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-3">
               <div>
                 <label className="form-label">Date début *</label>
                 <input type="date" className="form-input" value={formAssurance.date_debut} onChange={e => setFormAssurance(f => ({...f, date_debut: e.target.value}))} required />
@@ -585,7 +588,7 @@ function OngletDocuments({ vehiculeId }) {
 
       {/* Visite technique */}
       <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <h3 className="font-semibold text-gray-800">Visite technique</h3>
             {visite?.date_echeance && <AlerteBadge dateEcheance={visite.date_echeance} />}
@@ -600,14 +603,14 @@ function OngletDocuments({ vehiculeId }) {
         </div>
 
         {!editingVisite && visite && (
-          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+          <div className="grid grid-cols-1 gap-4 text-sm text-gray-600 sm:grid-cols-2">
             <div><span className="font-medium">Réalisé le :</span> {fmtDate(visite.date_realisation)}</div>
             <div><span className="font-medium">Échéance :</span> {fmtDate(visite.date_echeance)}</div>
           </div>
         )}
 
         {editingVisite && (
-          <div className="flex items-end gap-4 mt-2">
+          <div className="flex flex-col gap-4 mt-2 sm:flex-row sm:items-end">
             <div>
               <label className="form-label">Date de réalisation</label>
               <input type="date" className="form-input w-40" value={formVisite.date_realisation} onChange={e => setFormVisite(f => ({...f, date_realisation: e.target.value}))} />
@@ -752,7 +755,7 @@ export default function VehiculeDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigate('/vehicules')}>
           <MdArrowBack size={16} /> Retour à la liste
         </button>
@@ -763,9 +766,9 @@ export default function VehiculeDetail() {
 
       {/* Header */}
       <div className="card">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold text-[#1A3C6B]">{vehicule.immatriculation}</h1>
               {editingStatut ? (
                 <div className="flex items-center gap-2 print:hidden">
@@ -811,15 +814,15 @@ export default function VehiculeDetail() {
 
       {/* Onglets */}
       <div className="card p-0 overflow-hidden">
-        <div className="flex border-b border-gray-200 bg-white print:hidden">
+        <div className="flex overflow-x-auto border-b border-gray-200 bg-white print:hidden scrollbar-thin">
           {TABS.map((tab, i) => (
             <button key={i} onClick={() => setActiveTab(i)}
-              className={`px-6 py-3.5 text-sm font-medium transition-colors ${activeTab === i ? 'tab-active' : 'tab-inactive'}`}>
+              className={`shrink-0 px-4 py-3.5 text-sm font-medium transition-colors sm:px-6 ${activeTab === i ? 'tab-active' : 'tab-inactive'}`}>
               {tab}
             </button>
           ))}
         </div>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {activeTab === 0 && <OngletEntretiens vehiculeId={id} />}
           {activeTab === 1 && <OngletCarburant vehiculeId={id} />}
           {activeTab === 2 && <OngletDocuments vehiculeId={id} />}

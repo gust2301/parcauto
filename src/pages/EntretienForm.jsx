@@ -58,7 +58,7 @@ export default function EntretienForm() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="form-label">Date *</label>
               <input type="date" className="form-input" value={form.date} onChange={e => set('date', e.target.value)} required />
@@ -79,7 +79,7 @@ export default function EntretienForm() {
             <input type="text" className="form-input" placeholder="ex: Filtre à huile, courroie..." value={form.pieces} onChange={e => set('pieces', e.target.value)} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="form-label">Coût (FCFA)</label>
               <input type="number" className="form-input" placeholder="0" value={form.cout} onChange={e => set('cout', e.target.value)} min="0" />

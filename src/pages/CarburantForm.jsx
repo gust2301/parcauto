@@ -5,43 +5,32 @@ import { MdArrowBack } from 'react-icons/md'
 
 const TYPES_CARBURANT = ['Gasoil', 'Essence', 'Autre']
 
+function getInitialForm(editData) {
+  return {
+    date: editData?.date || new Date().toISOString().split('T')[0],
+    litres: editData?.litres?.toString() || '',
+    kilometrage: editData?.kilometrage?.toString() || '',
+    type_carburant: editData?.type_carburant || 'Gasoil',
+    montant: editData?.montant?.toString() || '',
+    station: editData?.station || '',
+    numero_carte: editData?.reference_bon || '',
+  }
+}
+
 export default function CarburantForm({ editData, onSaved, onCancel }) {
   const params = useParams()
   const navigateHook = useNavigate()
   const id = editData ? editData.vehicule_id : params.id
   const isModal = !!editData
 
-  const navigate = isModal
-    ? () => onCancel()
-    : (path) => navigateHook(path)
-
   const [kmVehicule, setKmVehicule] = useState(0)
-  const [form, setForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    litres: '',
-    kilometrage: '',
-    type_carburant: 'Gasoil',
-    montant: '',
-    station: '',
-    numero_carte: '',
-  })
+  const [form, setForm] = useState(() => getInitialForm(editData))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     supabase.from('vehicules').select('kilometrage').eq('id', id).single()
       .then(({ data }) => { if (data) setKmVehicule(data.kilometrage || 0) })
-    if (editData) {
-      setForm({
-        date: editData.date || new Date().toISOString().split('T')[0],
-        litres: editData.litres?.toString() || '',
-        kilometrage: editData.kilometrage?.toString() || '',
-        type_carburant: editData.type_carburant || 'Gasoil',
-        montant: editData.montant?.toString() || '',
-        station: editData.station || '',
-        numero_carte: editData.reference_bon || '',
-      })
-    }
   }, [id])
 
   function set(field, value) {
@@ -99,7 +88,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="form-label">Date *</label>
           <input type="date" className="form-input" value={form.date} onChange={e => set('date', e.target.value)} required />
@@ -112,7 +101,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="form-label">Quantité (litres) *</label>
           <input type="number" className="form-input" placeholder="ex: 45.5" value={form.litres} onChange={e => set('litres', e.target.value)} step="0.1" min="0.1" required />
@@ -123,7 +112,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="form-label">Kilométrage au compteur</label>
           <input type="number" className="form-input" placeholder="ex: 45200" value={form.kilometrage}
@@ -141,7 +130,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
         <input type="text" className="form-input" placeholder="Numéro de carte carburant" value={form.numero_carte} onChange={e => set('numero_carte', e.target.value)} />
       </div>
 
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
         <button type="button" className="btn-secondary flex-1"
           onClick={() => isModal ? onCancel() : navigateHook(`/vehicules/${id}?tab=carburant`)}>
           Annuler

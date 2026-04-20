@@ -9,11 +9,11 @@ export default function StatCard({ titre, valeur, icone: Icone, couleur = 'blue'
   const c = couleurs[couleur] || couleurs.blue
 
   return (
-    <div className={`rounded-xl p-5 border border-gray-200 shadow-sm ${c.bg}`}>
+    <div className={`rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm ${c.bg}`}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm font-medium text-gray-500 mb-1">{titre}</p>
-          <p className={`text-2xl font-bold ${c.text}`}>{valeur}</p>
+          <p className={`break-words text-xl font-bold sm:text-2xl ${c.text}`}>{valeur}</p>
           {sous_titre && <p className="text-xs text-gray-400 mt-1">{sous_titre}</p>}
         </div>
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${c.icon}`}>

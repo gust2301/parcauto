@@ -8,12 +8,15 @@ import { format, parseISO, differenceInDays, startOfMonth, endOfMonth, startOfYe
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts'
+import Pagination from '../components/Pagination'
+import { getTotalPages, paginate } from '../lib/pagination'
 
 function fmt(n) { return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA' }
 function fmtDate(d) { if (!d) return '—'; return format(parseISO(d), 'dd/MM/yyyy') }
 
 const FILTRE_OPTIONS = ['Tout', 'Carburant', 'Assurance', 'Contravention']
 const COLORS_VEHICULE = ['#1A3C6B','#2563eb','#0891b2','#059669','#7c3aed','#db2777','#ea580c']
+const CARD_PAGE_SIZE = 5
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -22,9 +25,9 @@ export default function Dashboard() {
   const [coutParVehicule, setCoutParVehicule] = useState([])
   const [filtreVehicule, setFiltreVehicule] = useState('Tout')
   const [deplacements, setDeplacements] = useState([])
+  const [alertesPage, setAlertesPage] = useState(1)
+  const [deplacementsPage, setDeplacementsPage] = useState(1)
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
@@ -59,7 +62,7 @@ export default function Dashboard() {
       supabase.from('contraventions').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
       supabase.from('assurances').select('montant').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
       supabase.from('carburant').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
-      supabase.from('deplacements').select('*, chauffeurs(nom_complet), vehicules(immatriculation)').order('date', { ascending: false }).limit(20),
+      supabase.from('deplacements').select('*, chauffeurs(nom_complet), vehicules(immatriculation)').order('date', { ascending: false }).limit(100),
     ])
 
     const actifs = (vehicules || []).filter(v => v.statut === 'actif').length
@@ -109,7 +112,13 @@ export default function Dashboard() {
     setLoading(false)
   }
 
+  useEffect(() => { Promise.resolve().then(loadAll) }, [])
+
   const typeLabel = { assurance: 'Assurance', visite_technique: 'Visite technique' }
+  const currentAlertesPage = Math.min(alertesPage, getTotalPages(alertesDocs.length, CARD_PAGE_SIZE))
+  const currentDeplacementsPage = Math.min(deplacementsPage, getTotalPages(deplacements.length, CARD_PAGE_SIZE))
+  const paginatedAlertes = paginate(alertesDocs, currentAlertesPage, CARD_PAGE_SIZE)
+  const paginatedDeplacements = paginate(deplacements, currentDeplacementsPage, CARD_PAGE_SIZE)
 
   // Données graphe selon filtre
   const graphData = coutParVehicule.map(v => {
@@ -130,22 +139,22 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Tableau de bord</h1>
-        <button className="print:hidden btn-secondary flex items-center gap-2 text-sm" onClick={() => window.print()}>
+        <button className="print:hidden btn-secondary flex w-full items-center justify-center gap-2 text-sm sm:w-auto" onClick={() => window.print()}>
           <MdPrint size={16} /> Imprimer
         </button>
       </div>
 
       {/* StatCards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard titre="Véhicules actifs"   valeur={stats.actifs}            icone={MdGarage}              couleur="blue" />
         <StatCard titre="Alertes documents"  valeur={stats.alertes}           icone={MdNotificationsActive}  couleur={stats.alertes > 0 ? 'red' : 'green'} />
         <StatCard titre="Coût du mois"       valeur={fmt(stats.coutMois)}     icone={MdPayments}             couleur="orange" />
         <StatCard titre="Coût de l'année"    valeur={fmt(stats.coutAnnee)}    icone={MdAssessment}           couleur="purple" />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Alertes */}
         <div className="card">
           <h2 className="text-base font-semibold text-gray-800 mb-4">Alertes documents (&le; 30 jours)</h2>
@@ -153,9 +162,9 @@ export default function Dashboard() {
             <p className="text-gray-400 text-sm italic text-center py-4">Aucune alerte</p>
           ) : (
             <div className="space-y-2">
-              {alertesDocs.map(d => (
+              {paginatedAlertes.map(d => (
                 <div key={d.id}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-blue-50 rounded-lg px-2 cursor-pointer transition-colors"
+                  className="flex flex-col gap-2 py-2 border-b border-gray-100 last:border-0 hover:bg-blue-50 rounded-lg px-2 cursor-pointer transition-colors sm:flex-row sm:items-center sm:justify-between"
                   onClick={() => navigate(`/vehicules/${d.vehicule_id}?tab=documents`)}>
                   <div>
                     <p className="text-sm font-medium text-gray-800">{d.vehicules?.immatriculation} — {typeLabel[d.type] || d.type}</p>
@@ -169,11 +178,17 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          <Pagination
+            total={alertesDocs.length}
+            page={currentAlertesPage}
+            perPage={CARD_PAGE_SIZE}
+            onPage={setAlertesPage}
+          />
         </div>
 
         {/* Déplacements chauffeurs */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
               <MdPerson size={18} className="text-[#1A3C6B]" /> Déplacements chauffeurs
             </h2>
@@ -181,10 +196,11 @@ export default function Dashboard() {
               Gérer les chauffeurs →
             </button>
           </div>
-          <div className="overflow-y-auto max-h-64">
+          <div className="max-h-64 overflow-auto scrollbar-thin">
             {deplacements.length === 0 ? (
               <p className="text-gray-400 text-sm italic text-center py-4">Aucun déplacement enregistré</p>
             ) : (
+              <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200">
@@ -195,7 +211,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {deplacements.map(d => {
+                  {paginatedDeplacements.map(d => {
                     const total = (d.nombre_jours || 1) * (d.montant_journalier || 0)
                     const isPaye = d.status === 'paye'
                     return (
@@ -216,20 +232,27 @@ export default function Dashboard() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
+          <Pagination
+            total={deplacements.length}
+            page={currentDeplacementsPage}
+            perPage={CARD_PAGE_SIZE}
+            onPage={setDeplacementsPage}
+          />
         </div>
       </div>
 
       {/* Graphe comparaison coûts par véhicule */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-base font-semibold text-gray-800">Coûts annuels par véhicule</h2>
-          <div className="flex gap-1 rounded-lg border border-gray-200 overflow-hidden text-sm print:hidden">
+          <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-gray-200 text-sm print:hidden">
             {FILTRE_OPTIONS.map(f => (
               <button key={f}
                 onClick={() => setFiltreVehicule(f)}
-                className={`px-3 py-1.5 ${filtreVehicule === f ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                className={`shrink-0 px-3 py-1.5 ${filtreVehicule === f ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
                 {f}
               </button>
             ))}
