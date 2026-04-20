@@ -7,7 +7,8 @@ import {
 } from 'react-icons/md'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import SearchSort, { filterSort } from '../components/SearchSort'
-import Pagination, { paginate } from '../components/Pagination'
+import Pagination from '../components/Pagination'
+import { getTotalPages, paginate } from '../lib/pagination'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -389,9 +390,12 @@ export default function Chauffeurs() {
   const [sortKey, setSortKey] = useState('nom_complet')
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(1)
-  const PER_PAGE = 10
+  const [perPage, setPerPage] = useState(10)
 
   useEffect(() => { loadAll() }, [])
+
+  const filteredChauffeurs = filterSort(chauffeurs, search, ['nom_complet', 'matricule', 'grade'], sortKey, sortDir)
+  const currentPage = Math.min(page, getTotalPages(filteredChauffeurs.length, perPage))
 
   async function loadAll() {
     setLoading(true)
@@ -507,8 +511,8 @@ export default function Chauffeurs() {
             ]}
           />
           {(() => {
-            const filteredCh = filterSort(chauffeurs, search, ['nom_complet', 'matricule', 'grade'], sortKey, sortDir)
-            const paginatedCh = paginate(filteredCh, page, PER_PAGE)
+            const filteredCh = filteredChauffeurs
+            const paginatedCh = paginate(filteredCh, currentPage, perPage)
             return (
               <div className="card p-0 overflow-hidden">
                 <table className="w-full text-sm">
@@ -541,7 +545,13 @@ export default function Chauffeurs() {
                     )}
                   </tbody>
                 </table>
-                <Pagination total={filteredCh.length} page={page} perPage={PER_PAGE} onPage={setPage} />
+                <Pagination
+                  total={filteredCh.length}
+                  page={currentPage}
+                  perPage={perPage}
+                  onPage={setPage}
+                  onPerPage={size => { setPerPage(size); setPage(1) }}
+                />
               </div>
             )
           })()}

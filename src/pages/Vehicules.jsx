@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdAdd, MdArrowForward, MdEdit, MdDelete, MdCheck, MdClose } from 'react-icons/md'
 import SearchSort, { filterSort } from '../components/SearchSort'
-import Pagination, { paginate } from '../components/Pagination'
+import Pagination from '../components/Pagination'
+import { getTotalPages, paginate } from '../lib/pagination'
 
 const STATUT_CONFIG = {
   actif:   { label: 'Actif',    cls: 'bg-green-100 text-green-800' },
@@ -91,7 +92,7 @@ export default function Vehicules() {
   const [sortKey, setSortKey] = useState('created_at')
   const [sortDir, setSortDir] = useState('desc')
   const [page, setPage] = useState(1)
-  const PER_PAGE = 10
+  const [perPage, setPerPage] = useState(10)
 
   useEffect(() => { load() }, [])
 
@@ -139,7 +140,8 @@ export default function Vehicules() {
   }
 
   const filtered = filterSort(vehicules, search, ['immatriculation', 'marque', 'modele', 'statut'], sortKey, sortDir)
-  const paginated = paginate(filtered, page, PER_PAGE)
+  const currentPage = Math.min(page, getTotalPages(filtered.length, perPage))
+  const paginated = paginate(filtered, currentPage, perPage)
 
   return (
     <div className="space-y-6">
@@ -242,7 +244,13 @@ export default function Vehicules() {
               })}
             </tbody>
           </table>
-          <Pagination total={filtered.length} page={page} perPage={PER_PAGE} onPage={setPage} />
+          <Pagination
+            total={filtered.length}
+            page={currentPage}
+            perPage={perPage}
+            onPage={setPage}
+            onPerPage={size => { setPerPage(size); setPage(1) }}
+          />
           </>
         )}
       </div>

@@ -1,14 +1,22 @@
-import { useState, useEffect } from 'react'
-import Pagination, { paginate } from './Pagination'
+import { useState } from 'react'
+import Pagination from './Pagination'
+import { getTotalPages, paginate } from '../lib/pagination'
 
 export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée', perPage = 10 }) {
-  const [page, setPage] = useState(1)
-
-  // Remet à la page 1 quand les données changent (recherche / tri)
-  const dataKey = donnees.length + '-' + (donnees[0]?.id ?? donnees[0]?.date ?? '')
-  useEffect(() => { setPage(1) }, [dataKey])
-
-  const paginatedData = paginate(donnees, page, perPage)
+  const dataKey = donnees.map(row => row?.id ?? row?.date ?? '').join('|')
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: perPage,
+    dataKey,
+    initialPerPage: perPage,
+  })
+  const hasChangedData = pagination.dataKey !== dataKey
+  const hasChangedPerPage = pagination.initialPerPage !== perPage
+  const pageSize = hasChangedPerPage ? perPage : pagination.pageSize
+  const page = hasChangedData || hasChangedPerPage ? 1 : pagination.page
+  const totalPages = getTotalPages(donnees.length, pageSize)
+  const currentPage = Math.min(page, totalPages)
+  const paginatedData = paginate(donnees, currentPage, pageSize)
 
   return (
     <div className="overflow-x-auto">
@@ -31,7 +39,7 @@ export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée', 
             </tr>
           ) : (
             paginatedData.map((row, i) => (
-              <tr key={i} className="hover:bg-gray-50 transition-colors">
+              <tr key={row?.id ?? i} className="hover:bg-gray-50 transition-colors">
                 {colonnes.map((col, j) => (
                   <td key={j} className="px-4 py-3 text-gray-700 whitespace-nowrap">
                     {col.render ? col.render(row) : (row[col.key] ?? '—')}
@@ -42,7 +50,13 @@ export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée', 
           )}
         </tbody>
       </table>
-      <Pagination total={donnees.length} page={page} perPage={perPage} onPage={setPage} />
+      <Pagination
+        total={donnees.length}
+        page={currentPage}
+        perPage={pageSize}
+        onPage={nextPage => setPagination({ page: nextPage, pageSize, dataKey, initialPerPage: perPage })}
+        onPerPage={size => setPagination({ page: 1, pageSize: size, dataKey, initialPerPage: perPage })}
+      />
     </div>
   )
 }

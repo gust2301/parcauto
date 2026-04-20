@@ -1,48 +1,69 @@
 import { MdChevronLeft, MdChevronRight } from 'react-icons/md'
+import { getTotalPages } from '../lib/pagination'
 
-/**
- * Composant pagination réutilisable
- * Props:
- *   total    : nombre total d'items
- *   page     : page courante (1-based)
- *   perPage  : items par page
- *   onPage   : fn(newPage)
- */
-export default function Pagination({ total, page, perPage, onPage }) {
-  const totalPages = Math.ceil(total / perPage)
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50]
+
+export default function Pagination({
+  total,
+  page,
+  perPage,
+  onPage,
+  onPerPage,
+  perPageOptions = DEFAULT_PAGE_SIZE_OPTIONS,
+}) {
+  const totalPages = getTotalPages(total, perPage)
   if (totalPages <= 1) return null
 
   const start = (page - 1) * perPage + 1
   const end = Math.min(page * perPage, total)
 
-  // Génère la liste de pages à afficher (avec ellipses)
   function getPages() {
     const pages = []
-    const delta = 2
+    const delta = 1
     const left = page - delta
     const right = page + delta
+    let lastPage = 0
 
     for (let i = 1; i <= totalPages; i++) {
       if (i === 1 || i === totalPages || (i >= left && i <= right)) {
+        if (lastPage && i - lastPage > 1) pages.push('...')
         pages.push(i)
-      } else if (i === left - 1 || i === right + 1) {
-        pages.push('...')
+        lastPage = i
       }
     }
+
     return pages
   }
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-white">
-      <p className="text-xs text-gray-500">
-        {start}–{end} sur <span className="font-medium text-gray-700">{total}</span>
-      </p>
+    <div className="flex flex-col gap-3 px-4 py-3 border-t border-gray-100 bg-white sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3 text-xs text-gray-500">
+        <p>
+          {start}–{end} sur <span className="font-medium text-gray-700">{total}</span>
+        </p>
+        {onPerPage && (
+          <label className="flex items-center gap-2">
+            <span className="hidden sm:inline">Lignes</span>
+            <select
+              className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1A3C6B]"
+              value={perPage}
+              onChange={e => onPerPage(Number(e.target.value))}
+            >
+              {perPageOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center justify-end gap-1">
         <button
-          onClick={() => onPage(page - 1)}
+          type="button"
+          onClick={() => onPage(Math.max(1, page - 1))}
           disabled={page === 1}
-          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label="Page précédente"
         >
           <MdChevronLeft size={18} />
         </button>
@@ -53,12 +74,14 @@ export default function Pagination({ total, page, perPage, onPage }) {
           ) : (
             <button
               key={p}
+              type="button"
               onClick={() => onPage(p)}
-              className={`min-w-[30px] h-[30px] rounded-lg text-xs font-medium transition-colors ${
+              className={`h-8 min-w-8 rounded-lg px-2 text-xs font-medium transition-colors ${
                 p === page
                   ? 'bg-[#1A3C6B] text-white'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
+              aria-current={p === page ? 'page' : undefined}
             >
               {p}
             </button>
@@ -66,20 +89,15 @@ export default function Pagination({ total, page, perPage, onPage }) {
         )}
 
         <button
-          onClick={() => onPage(page + 1)}
+          type="button"
+          onClick={() => onPage(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label="Page suivante"
         >
           <MdChevronRight size={18} />
         </button>
       </div>
     </div>
   )
-}
-
-/**
- * Découpe un tableau selon la page courante
- */
-export function paginate(data, page, perPage) {
-  return data.slice((page - 1) * perPage, page * perPage)
 }
