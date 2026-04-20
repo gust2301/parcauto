@@ -19,7 +19,7 @@ export default function DataTable({ colonnes, donnees, vide = 'Aucune donnée', 
   const paginatedData = paginate(donnees, currentPage, pageSize)
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto scrollbar-thin">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">

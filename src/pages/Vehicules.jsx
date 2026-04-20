@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdAdd, MdArrowForward, MdEdit, MdDelete, MdCheck, MdClose } from 'react-icons/md'
-import SearchSort, { filterSort } from '../components/SearchSort'
+import SearchSort from '../components/SearchSort'
+import { filterSort } from '../lib/searchSort'
 import Pagination from '../components/Pagination'
 import { getTotalPages, paginate } from '../lib/pagination'
 
@@ -17,7 +18,7 @@ const FORM_VIDE = { immatriculation: '', marque: '', modele: '', annee: '', kilo
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><MdClose size={22} /></button>
@@ -40,7 +41,7 @@ function VehiculeForm({ initial, onSave, onCancel, saving }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="form-label">Immatriculation *</label>
           <input className="form-input" value={form.immatriculation} onChange={e => set('immatriculation', e.target.value)} required placeholder="ex: DK-1234-AB" />
@@ -145,9 +146,9 @@ export default function Vehicules() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Véhicules</h1>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowModal(true)}>
+        <button className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto" onClick={() => setShowModal(true)}>
           <MdAdd size={18} /> Ajouter un véhicule
         </button>
       </div>
@@ -175,6 +176,7 @@ export default function Vehicules() {
           <div className="p-8 text-center text-gray-400">Chargement...</div>
         ) : (
           <>
+          <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
@@ -244,6 +246,7 @@ export default function Vehicules() {
               })}
             </tbody>
           </table>
+          </div>
           <Pagination
             total={filtered.length}
             page={currentPage}

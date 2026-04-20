@@ -6,7 +6,8 @@ import {
   MdCheck, MdClose, MdDirectionsCar, MdWarning,
 } from 'react-icons/md'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import SearchSort, { filterSort } from '../components/SearchSort'
+import SearchSort from '../components/SearchSort'
+import { filterSort } from '../lib/searchSort'
 import Pagination from '../components/Pagination'
 import { getTotalPages, paginate } from '../lib/pagination'
 
@@ -31,7 +32,7 @@ function ConfirmDelete({ onConfirm, onCancel }) {
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><MdClose size={22} /></button>
@@ -142,7 +143,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between">
         <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={onBack}>
           <MdArrowBack size={16} /> Retour à la liste
         </button>
@@ -153,7 +154,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
 
       {/* Info chauffeur */}
       <div className="card">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 rounded-xl bg-[#1A3C6B]/10 flex items-center justify-center flex-shrink-0">
               <MdPerson size={28} className="text-[#1A3C6B]" />
@@ -186,7 +187,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
         </div>
 
         {/* Résumé */}
-        <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-gray-100">
+        <div className="grid grid-cols-1 gap-4 mt-5 pt-5 border-t border-gray-100 sm:grid-cols-3">
           <div className="text-center">
             <p className="text-2xl font-bold text-[#1A3C6B]">{deplacements.length}</p>
             <p className="text-xs text-gray-400 mt-1">Déplacements</p>
@@ -204,9 +205,9 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
 
       {/* Déplacements */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-semibold text-gray-800">Déplacements</h2>
-          <button className="btn-primary flex items-center gap-2 text-sm"
+          <button className="btn-primary flex w-full items-center justify-center gap-2 text-sm sm:w-auto"
             onClick={() => { setEditingDep(null); setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' }); setShowFormDep(true) }}>
             <MdAdd size={16} /> Nouveau déplacement
           </button>
@@ -215,7 +216,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
         {showFormDep && (
           <form onSubmit={saveDep} className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
             <p className="text-sm font-medium text-gray-700 mb-3">{editingDep ? 'Modifier le déplacement' : 'Nouveau déplacement'}</p>
-            <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-3">
               <div>
                 <label className="form-label">Date *</label>
                 <input type="date" className="form-input" value={formDep.date} onChange={e => setFormDep(f => ({...f, date: e.target.value}))} required />
@@ -229,7 +230,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
                 <input type="number" className="form-input" min="0" value={formDep.montant_journalier} onChange={e => setFormDep(f => ({...f, montant_journalier: e.target.value}))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-2">
               {/* Sélection véhicule */}
               <div className="relative">
                 <label className="form-label">Véhicule</label>
@@ -274,7 +275,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
           </form>
         )}
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
@@ -343,7 +344,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
             <MdWarning size={18} className="text-orange-500" />
             Contraventions ({contraventions.length}) — Total : {fmtNum(totalContrav)} FCFA
           </h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
@@ -462,9 +463,9 @@ export default function Chauffeurs() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Chauffeurs</h1>
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(v => !v)}>
+        <button className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto" onClick={() => setShowForm(v => !v)}>
           <MdAdd size={18} /> Nouveau chauffeur
         </button>
       </div>
@@ -474,7 +475,7 @@ export default function Chauffeurs() {
         <div className="card">
           <h2 className="text-base font-semibold text-gray-800 mb-4">Nouveau chauffeur</h2>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <label className="form-label">Nom complet *</label>
                 <input type="text" className="form-input" placeholder="Prénom et Nom" value={form.nom_complet} onChange={e => setForm(f => ({...f, nom_complet: e.target.value}))} required />
@@ -496,9 +497,9 @@ export default function Chauffeurs() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Liste chauffeurs */}
-        <div className="col-span-2 space-y-3">
+        <div className="space-y-3 xl:col-span-2">
           <SearchSort
             search={search} onSearch={v => { setSearch(v); setPage(1) }}
             placeholder="Rechercher par nom, matricule, grade..."
@@ -515,6 +516,7 @@ export default function Chauffeurs() {
             const paginatedCh = paginate(filteredCh, currentPage, perPage)
             return (
               <div className="card p-0 overflow-hidden">
+                <div className="overflow-x-auto scrollbar-thin">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
@@ -545,6 +547,7 @@ export default function Chauffeurs() {
                     )}
                   </tbody>
                 </table>
+                </div>
                 <Pagination
                   total={filteredCh.length}
                   page={currentPage}

@@ -3,6 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdArrowBack, MdClose } from 'react-icons/md'
 
+function getInitialForm(editData) {
+  return {
+    date: editData?.date || new Date().toISOString().split('T')[0],
+    lieu: editData?.lieu || '',
+    chauffeur_id: editData?.chauffeur_id || '',
+    nature: editData?.nature || '',
+    montant: editData?.montant?.toString() || '',
+    statut: editData?.statut || 'en_attente',
+  }
+}
+
 export default function ContraventionForm({ editData, onSaved, onCancel }) {
   const params = useParams()
   const navigateHook = useNavigate()
@@ -12,30 +23,13 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
   const [chauffeurs, setChauffeurs] = useState([])
   const [chauffeurSearch, setChauffeurSearch] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
-  const [form, setForm] = useState({
-    date: new Date().toISOString().split('T')[0],
-    lieu: '',
-    chauffeur_id: '',
-    nature: '',
-    montant: '',
-    statut: 'en_attente',
-  })
+  const [form, setForm] = useState(() => getInitialForm(editData))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     supabase.from('chauffeurs').select('*').order('nom_complet')
       .then(({ data }) => setChauffeurs(data || []))
-    if (editData) {
-      setForm({
-        date: editData.date || new Date().toISOString().split('T')[0],
-        lieu: editData.lieu || '',
-        chauffeur_id: editData.chauffeur_id || '',
-        nature: editData.nature || '',
-        montant: editData.montant?.toString() || '',
-        statut: editData.statut || 'en_attente',
-      })
-    }
   }, [])
 
   function set(field, value) {
@@ -103,7 +97,7 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="form-label">Date *</label>
           <input type="date" className="form-input" value={form.date} onChange={e => set('date', e.target.value)} required />
@@ -171,7 +165,7 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="form-label">Nature de l'infraction</label>
           <input type="text" className="form-input" placeholder="ex: Excès de vitesse" value={form.nature} onChange={e => set('nature', e.target.value)} />
@@ -191,7 +185,7 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
         </select>
       </div>
 
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
         <button type="button" className="btn-secondary flex-1"
           onClick={() => isModal ? onCancel() : navigateHook(`/vehicules/${id}?tab=contraventions`)}>
           Annuler

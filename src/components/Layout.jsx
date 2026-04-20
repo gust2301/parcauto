@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdDashboard, MdDirectionsCar, MdLogout, MdPerson, MdSettings } from 'react-icons/md'
@@ -20,7 +21,7 @@ export default function Layout({ children }) {
   return (
     <div className="flex min-h-screen w-full">
       {/* Sidebar */}
-      <aside className="w-60 min-h-screen bg-[#1A3C6B] text-white flex flex-col shadow-xl flex-shrink-0 print:hidden">
+      <aside className="hidden w-60 min-h-screen bg-[#1A3C6B] text-white lg:flex flex-col shadow-xl flex-shrink-0 print:hidden">
         {/* Logo */}
         <div className="px-6 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -34,7 +35,7 @@ export default function Layout({ children }) {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.map(({ to, label, icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -44,7 +45,7 @@ export default function Layout({ children }) {
                 }`
               }
             >
-              <Icon size={20} />
+              {createElement(icon, { size: 20 })}
               {label}
             </NavLink>
           ))}
@@ -74,11 +75,56 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Contenu principal */}
-      <main className="flex-1 overflow-auto bg-gray-100">
-        <div className="p-8">
+      <main className="flex-1 overflow-auto bg-gray-100 pb-24 lg:pb-0">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur lg:hidden print:hidden">
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="SN-CFS Flotte" className="h-9 w-9 rounded-lg object-contain" />
+            <div>
+              <p className="text-sm font-bold leading-tight text-[#1A3C6B]">SN-CFS Flotte</p>
+              <p className="text-xs text-gray-400">Gestion de flotte</p>
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+            aria-label="Déconnexion"
+          >
+            <MdLogout size={20} />
+          </button>
+        </header>
+
+        <div className="p-4 sm:p-6 lg:p-8">
           {children}
         </div>
       </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-gray-200 bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] lg:hidden print:hidden">
+        {navItems.map(({ to, label, icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium ${
+                isActive ? 'bg-[#1A3C6B]/10 text-[#1A3C6B]' : 'text-gray-500'
+              }`
+            }
+          >
+            {createElement(icon, { size: 21 })}
+            <span className="max-w-full truncate">{label}</span>
+          </NavLink>
+        ))}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            `flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-medium ${
+              isActive ? 'bg-[#1A3C6B]/10 text-[#1A3C6B]' : 'text-gray-500'
+            }`
+          }
+        >
+          <MdSettings size={21} />
+          <span>Paramètres</span>
+        </NavLink>
+      </nav>
     </div>
   )
 }
