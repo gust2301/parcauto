@@ -1,45 +1,38 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MdGarage, MdNotificationsActive, MdPayments, MdAssessment } from 'react-icons/md'
+import { MdGarage, MdNotificationsActive, MdPayments, MdAssessment, MdPrint, MdDirectionsCar, MdPerson } from 'react-icons/md'
 import StatCard from '../components/StatCard'
 import AlerteBadge from '../components/AlerteBadge'
 import { format, parseISO, differenceInDays, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns'
-import { fr } from 'date-fns/locale'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts'
 
-function fmt(n) {
-  return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'
-}
+function fmt(n) { return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA' }
+function fmtDate(d) { if (!d) return '—'; return format(parseISO(d), 'dd/MM/yyyy') }
 
-function fmtDate(d) {
-  if (!d) return '—'
-  return format(parseISO(d), 'dd/MM/yyyy')
-}
-
-const MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+const FILTRE_OPTIONS = ['Tout', 'Carburant', 'Assurance', 'Contravention']
+const COLORS_VEHICULE = ['#1A3C6B','#2563eb','#0891b2','#059669','#7c3aed','#db2777','#ea580c']
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const [stats, setStats] = useState({ actifs: 0, alertes: 0, coutMois: 0, coutAnnee: 0 })
   const [alertesDocs, setAlertesDocs] = useState([])
-  const [graphData, setGraphData] = useState([])
   const [coutParVehicule, setCoutParVehicule] = useState([])
+  const [filtreVehicule, setFiltreVehicule] = useState('Tout')
+  const [deplacements, setDeplacements] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadAll()
-  }, [])
+  useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
     const now = new Date()
-    const debutMois = format(startOfMonth(now), 'yyyy-MM-dd')
-    const finMois = format(endOfMonth(now), 'yyyy-MM-dd')
-    const debutAnnee = format(startOfYear(now), 'yyyy-MM-dd')
-    const finAnnee = format(endOfYear(now), 'yyyy-MM-dd')
+    const debutMois  = format(startOfMonth(now), 'yyyy-MM-dd')
+    const finMois    = format(endOfMonth(now),   'yyyy-MM-dd')
+    const debutAnnee = format(startOfYear(now),  'yyyy-MM-dd')
+    const finAnnee   = format(endOfYear(now),    'yyyy-MM-dd')
 
     const [
       { data: vehicules },
@@ -48,12 +41,12 @@ export default function Dashboard() {
       { data: entretiensMois },
       { data: contraventionsMois },
       { data: assurancesMois },
+      { data: carburantMois },
       { data: entretiensAnnee },
       { data: contraventionsAnnee },
       { data: assurancesAnnee },
-      { data: entretiensGraph },
-      { data: contraventionsGraph },
-      { data: assurancesGraph },
+      { data: carburantAnnee },
+      { data: deps },
     ] = await Promise.all([
       supabase.from('vehicules').select('id, statut, immatriculation, marque, modele'),
       supabase.from('documents').select('*, vehicules(immatriculation, marque, modele)'),
@@ -61,115 +54,99 @@ export default function Dashboard() {
       supabase.from('entretiens').select('cout').gte('date', debutMois).lte('date', finMois),
       supabase.from('contraventions').select('montant').gte('date', debutMois).lte('date', finMois),
       supabase.from('assurances').select('montant').gte('date_debut', debutMois).lte('date_debut', finMois),
+      supabase.from('carburant').select('montant').gte('date', debutMois).lte('date', finMois),
       supabase.from('entretiens').select('cout').gte('date', debutAnnee).lte('date', finAnnee),
       supabase.from('contraventions').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
       supabase.from('assurances').select('montant').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
-      supabase.from('entretiens').select('cout, date').gte('date', debutAnnee).lte('date', finAnnee),
-      supabase.from('contraventions').select('montant, date').gte('date', debutAnnee).lte('date', finAnnee),
-      supabase.from('assurances').select('montant, date_debut').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
+      supabase.from('carburant').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
+      supabase.from('deplacements').select('*, chauffeurs(nom_complet), vehicules(immatriculation)').order('date', { ascending: false }).limit(20),
     ])
 
-    // Stats de base
     const actifs = (vehicules || []).filter(v => v.statut === 'actif').length
-    const coutMois = (entretiensMois || []).reduce((s, e) => s + (e.cout || 0), 0)
-                   + (contraventionsMois || []).reduce((s, c) => s + (c.montant || 0), 0)
-                   + (assurancesMois || []).reduce((s, a) => s + (a.montant || 0), 0)
-    const coutAnnee = (entretiensAnnee || []).reduce((s, e) => s + (e.cout || 0), 0)
-                    + (contraventionsAnnee || []).reduce((s, c) => s + (c.montant || 0), 0)
-                    + (assurancesAnnee || []).reduce((s, a) => s + (a.montant || 0), 0)
+    const coutMois = [entretiensMois, contraventionsMois, assurancesMois, carburantMois]
+      .flat().filter(Boolean).reduce((s, e) => s + (e.cout || e.montant || 0), 0)
+    const coutAnnee = [entretiensAnnee, contraventionsAnnee, assurancesAnnee, carburantAnnee]
+      .flat().filter(Boolean).reduce((s, e) => s + (e.cout || e.montant || 0), 0)
 
-    // Alertes : visite technique + assurances par véhicule (la plus récente)
+    // Alertes
     const alertesVisite = (docs || [])
       .filter(d => d.type === 'visite_technique' && d.date_echeance)
-      .map(d => ({ ...d, jours: differenceInDays(parseISO(d.date_echeance), new Date()), label: 'Visite technique' }))
-
-    // Grouper assurances par véhicule → garder la plus récente
+      .map(d => ({ ...d, jours: differenceInDays(parseISO(d.date_echeance), now), label: 'Visite technique' }))
     const assurancesParVehicule = {}
-    ;(assurances || []).forEach(a => {
-      if (!assurancesParVehicule[a.vehicule_id]) assurancesParVehicule[a.vehicule_id] = a
-    })
+    ;(assurances || []).forEach(a => { if (!assurancesParVehicule[a.vehicule_id]) assurancesParVehicule[a.vehicule_id] = a })
     const alertesAssurance = Object.values(assurancesParVehicule)
       .filter(a => a.date_echeance)
-      .map(a => ({
-        id: a.id,
-        vehicule_id: a.vehicule_id,
-        vehicules: a.vehicules,
-        date_echeance: a.date_echeance,
-        type: 'assurance',
-        jours: differenceInDays(parseISO(a.date_echeance), new Date()),
-        label: 'Assurance',
-      }))
+      .map(a => ({ ...a, type: 'assurance', jours: differenceInDays(parseISO(a.date_echeance), now), label: 'Assurance' }))
+    const docsAlerte = [...alertesVisite, ...alertesAssurance].filter(d => d.jours <= 30).sort((a, b) => a.jours - b.jours)
 
-    const docsAlerte = [...alertesVisite, ...alertesAssurance]
-      .filter(d => d.jours <= 30)
-      .sort((a, b) => a.jours - b.jours)
-
-    // Graphe mensuel
-    const moisData = Array.from({ length: 12 }, (_, i) => ({
-      mois: MOIS_LABELS[i],
-      entretiens: 0,
-      contraventions: 0,
-      assurances: 0,
-    }))
-
-    ;(entretiensGraph || []).forEach(e => {
-      const m = new Date(e.date).getMonth()
-      moisData[m].entretiens += e.cout || 0
-    })
-    ;(contraventionsGraph || []).forEach(c => {
-      const m = new Date(c.date).getMonth()
-      moisData[m].contraventions += c.montant || 0
-    })
-    ;(assurancesGraph || []).forEach(a => {
-      const m = new Date(a.date_debut).getMonth()
-      moisData[m].assurances += a.montant || 0
-    })
-
-    // Coût par véhicule (annuel)
+    // Coût par véhicule (annuel) avec détail par catégorie
     const coutVehicule = await Promise.all((vehicules || []).map(async v => {
-      const [{ data: ent }, { data: con }, { data: ass }] = await Promise.all([
-        supabase.from('entretiens').select('cout').eq('vehicule_id', v.id)
-          .gte('date', debutAnnee).lte('date', finAnnee),
-        supabase.from('contraventions').select('montant').eq('vehicule_id', v.id)
-          .gte('date', debutAnnee).lte('date', finAnnee),
-        supabase.from('assurances').select('montant').eq('vehicule_id', v.id)
-          .gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
+      const [{ data: ent }, { data: con }, { data: ass }, { data: carb }] = await Promise.all([
+        supabase.from('entretiens').select('cout').eq('vehicule_id', v.id).gte('date', debutAnnee).lte('date', finAnnee),
+        supabase.from('contraventions').select('montant').eq('vehicule_id', v.id).gte('date', debutAnnee).lte('date', finAnnee),
+        supabase.from('assurances').select('montant').eq('vehicule_id', v.id).gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
+        supabase.from('carburant').select('montant').eq('vehicule_id', v.id).gte('date', debutAnnee).lte('date', finAnnee),
       ])
+      const carburant  = (carb || []).reduce((s, e) => s + (e.montant || 0), 0)
+      const assurance  = (ass || []).reduce((s, e) => s + (e.montant || 0), 0)
+      const contravention = (con || []).reduce((s, e) => s + (e.montant || 0), 0)
+      const entretien  = (ent || []).reduce((s, e) => s + (e.cout || 0), 0)
       return {
-        ...v,
-        cout: (ent || []).reduce((s, e) => s + (e.cout || 0), 0)
-            + (con || []).reduce((s, c) => s + (c.montant || 0), 0)
-            + (ass || []).reduce((s, a) => s + (a.montant || 0), 0),
+        name: v.immatriculation,
+        marque: `${v.marque || ''} ${v.modele || ''}`.trim(),
+        carburant,
+        assurance,
+        contravention,
+        entretien,
+        total: carburant + assurance + contravention + entretien,
       }
     }))
 
     setStats({ actifs, alertes: docsAlerte.length, coutMois, coutAnnee })
     setAlertesDocs(docsAlerte)
-    setGraphData(moisData)
-    setCoutParVehicule(coutVehicule.sort((a, b) => b.cout - a.cout))
+    setCoutParVehicule(coutVehicule.filter(v => v.total > 0).sort((a, b) => b.total - a.total))
+    setDeplacements(deps || [])
     setLoading(false)
   }
 
-  const typeLabel = { assurance: 'Assurance', visite_technique: 'Visite technique', vignette: 'Vignette' }
+  const typeLabel = { assurance: 'Assurance', visite_technique: 'Visite technique' }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
+  // Données graphe selon filtre
+  const graphData = coutParVehicule.map(v => {
+    if (filtreVehicule === 'Carburant')     return { name: v.name, Carburant: v.carburant }
+    if (filtreVehicule === 'Assurance')     return { name: v.name, Assurance: v.assurance }
+    if (filtreVehicule === 'Contravention') return { name: v.name, Contravention: v.contravention }
+    return { name: v.name, Carburant: v.carburant, Assurance: v.assurance, Contravention: v.contravention, Entretien: v.entretien }
+  })
+
+  const BARS = {
+    'Tout':          [{ key: 'Carburant', color: '#10b981' }, { key: 'Assurance', color: '#1A3C6B' }, { key: 'Contravention', color: '#f97316' }, { key: 'Entretien', color: '#8b5cf6' }],
+    'Carburant':     [{ key: 'Carburant', color: '#10b981' }],
+    'Assurance':     [{ key: 'Assurance', color: '#1A3C6B' }],
+    'Contravention': [{ key: 'Contravention', color: '#f97316' }],
   }
+
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Tableau de bord</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-800">Tableau de bord</h1>
+        <button className="print:hidden btn-secondary flex items-center gap-2 text-sm" onClick={() => window.print()}>
+          <MdPrint size={16} /> Imprimer
+        </button>
+      </div>
 
       {/* StatCards */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard titre="Véhicules actifs" valeur={stats.actifs} icone={MdGarage} couleur="blue" />
-        <StatCard titre="Alertes documents" valeur={stats.alertes} icone={MdNotificationsActive} couleur={stats.alertes > 0 ? 'red' : 'green'} />
-        <StatCard titre="Coût du mois" valeur={fmt(stats.coutMois)} icone={MdPayments} couleur="orange" />
-        <StatCard titre="Coût de l'année" valeur={fmt(stats.coutAnnee)} icone={MdAssessment} couleur="purple" />
+        <StatCard titre="Véhicules actifs"   valeur={stats.actifs}            icone={MdGarage}              couleur="blue" />
+        <StatCard titre="Alertes documents"  valeur={stats.alertes}           icone={MdNotificationsActive}  couleur={stats.alertes > 0 ? 'red' : 'green'} />
+        <StatCard titre="Coût du mois"       valeur={fmt(stats.coutMois)}     icone={MdPayments}             couleur="orange" />
+        <StatCard titre="Coût de l'année"    valeur={fmt(stats.coutAnnee)}    icone={MdAssessment}           couleur="purple" />
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        {/* Alertes documents */}
+        {/* Alertes */}
         <div className="card">
           <h2 className="text-base font-semibold text-gray-800 mb-4">Alertes documents (&le; 30 jours)</h2>
           {alertesDocs.length === 0 ? (
@@ -177,15 +154,11 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {alertesDocs.map(d => (
-                <div
-                  key={d.id}
+                <div key={d.id}
                   className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-blue-50 rounded-lg px-2 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/vehicules/${d.vehicule_id}?tab=documents`)}
-                >
+                  onClick={() => navigate(`/vehicules/${d.vehicule_id}?tab=documents`)}>
                   <div>
-                    <p className="text-sm font-medium text-gray-800">
-                      {d.vehicules?.immatriculation} — {typeLabel[d.type] || d.type}
-                    </p>
+                    <p className="text-sm font-medium text-gray-800">{d.vehicules?.immatriculation} — {typeLabel[d.type] || d.type}</p>
                     <p className="text-xs text-gray-400">Échéance : {fmtDate(d.date_echeance)}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -198,48 +171,87 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Coût par véhicule */}
+        {/* Déplacements chauffeurs */}
         <div className="card">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">Coût annuel par véhicule</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+              <MdPerson size={18} className="text-[#1A3C6B]" /> Déplacements chauffeurs
+            </h2>
+            <button className="text-xs text-[#1A3C6B] underline hover:no-underline" onClick={() => navigate('/chauffeurs')}>
+              Gérer les chauffeurs →
+            </button>
+          </div>
           <div className="overflow-y-auto max-h-64">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 text-xs text-gray-500 font-semibold uppercase">Véhicule</th>
-                  <th className="text-right py-2 text-xs text-gray-500 font-semibold uppercase">Coût (FCFA)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {coutParVehicule.map(v => (
-                  <tr key={v.id}>
-                    <td className="py-2 text-gray-700">{v.immatriculation} <span className="text-gray-400 text-xs">{v.marque} {v.modele}</span></td>
-                    <td className="py-2 text-right font-medium text-gray-800">{new Intl.NumberFormat('fr-FR').format(v.cout)}</td>
+            {deplacements.length === 0 ? (
+              <p className="text-gray-400 text-sm italic text-center py-4">Aucun déplacement enregistré</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 text-xs text-gray-500 font-semibold uppercase">Chauffeur</th>
+                    <th className="text-left py-2 text-xs text-gray-500 font-semibold uppercase">Véhicule</th>
+                    <th className="text-right py-2 text-xs text-gray-500 font-semibold uppercase">Total</th>
+                    <th className="text-right py-2 text-xs text-gray-500 font-semibold uppercase">Statut</th>
                   </tr>
-                ))}
-                {coutParVehicule.length === 0 && (
-                  <tr><td colSpan={2} className="py-4 text-center text-gray-400 italic text-sm">Aucun véhicule</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {deplacements.map(d => {
+                    const total = (d.nombre_jours || 1) * (d.montant_journalier || 0)
+                    const isPaye = d.status === 'paye'
+                    return (
+                      <tr key={d.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate('/chauffeurs')}>
+                        <td className="py-2 text-gray-700 font-medium">{d.chauffeurs?.nom_complet || '—'}</td>
+                        <td className="py-2 text-gray-500 flex items-center gap-1">
+                          <MdDirectionsCar size={13} className="text-gray-400" />
+                          {d.vehicules?.immatriculation || '—'}
+                        </td>
+                        <td className="py-2 text-right text-gray-700">{new Intl.NumberFormat('fr-FR').format(total)}</td>
+                        <td className="py-2 text-right">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${isPaye ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
+                            {isPaye ? 'Payé' : 'Impayé'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Graphe barres */}
+      {/* Graphe comparaison coûts par véhicule */}
       <div className="card">
-        <h2 className="text-base font-semibold text-gray-800 mb-4">Coûts mensuels (entretiens + contraventions)</h2>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={graphData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="mois" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} tickFormatter={v => new Intl.NumberFormat('fr-FR', { notation: 'compact' }).format(v)} />
-            <Tooltip formatter={(v, name) => [new Intl.NumberFormat('fr-FR').format(v) + ' FCFA', { entretiens: 'Entretiens', contraventions: 'Contraventions', assurances: 'Assurances' }[name] || name]} />
-            <Legend formatter={n => ({ entretiens: 'Entretiens', contraventions: 'Contraventions', assurances: 'Assurances' })[n] || n} />
-            <Bar dataKey="entretiens" fill="#1A3C6B" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="contraventions" fill="#f97316" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="assurances" fill="#10b981" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-800">Coûts annuels par véhicule</h2>
+          <div className="flex gap-1 rounded-lg border border-gray-200 overflow-hidden text-sm print:hidden">
+            {FILTRE_OPTIONS.map(f => (
+              <button key={f}
+                onClick={() => setFiltreVehicule(f)}
+                className={`px-3 py-1.5 ${filtreVehicule === f ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {graphData.length === 0 ? (
+          <p className="text-gray-400 text-sm italic text-center py-8">Aucune donnée pour cette année</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={graphData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => new Intl.NumberFormat('fr-FR', { notation: 'compact' }).format(v)} />
+              <Tooltip formatter={(v, name) => [new Intl.NumberFormat('fr-FR').format(v) + ' FCFA', name]} />
+              <Legend />
+              {BARS[filtreVehicule].map(b => (
+                <Bar key={b.key} dataKey={b.key} fill={b.color} radius={[3,3,0,0]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   )

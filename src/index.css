@@ -45,3 +45,56 @@
     @apply text-gray-500 hover:text-gray-700 border-b-2 border-transparent;
   }
 }
+
+/* ── Styles impression ──────────────────────────────────────────────────────── */
+@media print {
+  body {
+    background: white !important;
+    font-size: 12px;
+  }
+
+  .print\:hidden,
+  button:not([data-print]),
+  nav,
+  aside {
+    display: none !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    break-inside: avoid;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  main > div {
+    padding: 1rem !important;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  th, td {
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  /* En-tête d'impression */
+  body::before {
+    content: "PARCAUTO — SNCFS — Fiche générée le " attr(data-date);
+    display: block;
+    padding: 0.5rem;
+    font-size: 10px;
+    color: #6b7280;
+    border-bottom: 2px solid #1A3C6B;
+    margin-bottom: 1rem;
+  }
+}

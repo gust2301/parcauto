@@ -1,10 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MdDashboard, MdDirectionsCar, MdLogout, MdLocalShipping } from 'react-icons/md'
+import { MdDashboard, MdDirectionsCar, MdLogout, MdPerson, MdSettings } from 'react-icons/md'
+import logo from '../assets/sn-cfs-flotte-favicon-transparent-large.png'
 
 const navItems = [
-  { to: '/dashboard', label: 'Tableau de bord', icon: MdDashboard },
-  { to: '/vehicules',  label: 'Véhicules',       icon: MdDirectionsCar },
+  { to: '/dashboard',  label: 'Tableau de bord', icon: MdDashboard },
+  { to: '/vehicules',  label: 'Véhicules',        icon: MdDirectionsCar },
+  { to: '/chauffeurs', label: 'Chauffeurs',        icon: MdPerson },
 ]
 
 export default function Layout({ children }) {
@@ -18,15 +20,13 @@ export default function Layout({ children }) {
   return (
     <div className="flex min-h-screen w-full">
       {/* Sidebar */}
-      <aside className="w-60 min-h-screen bg-[#1A3C6B] text-white flex flex-col shadow-xl flex-shrink-0">
+      <aside className="w-60 min-h-screen bg-[#1A3C6B] text-white flex flex-col shadow-xl flex-shrink-0 print:hidden">
         {/* Logo */}
-        <div className="px-6 py-6 border-b border-white/10">
+        <div className="px-6 py-5 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
-              <MdLocalShipping size={20} />
-            </div>
+            <img src={logo} alt="SN-CFS Flotte" className="w-10 h-10 object-contain rounded-lg" />
             <div>
-              <p className="font-bold text-white text-sm leading-tight">PARCAUTO</p>
+              <p className="font-bold text-white text-sm leading-tight">SN-CFS Flotte</p>
               <p className="text-white/50 text-xs">Gestion de flotte</p>
             </div>
           </div>
@@ -40,9 +40,7 @@ export default function Layout({ children }) {
               to={to}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-white/20 text-white'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  isActive ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
                 }`
               }
             >
@@ -52,8 +50,19 @@ export default function Layout({ children }) {
           ))}
         </nav>
 
-        {/* Déconnexion */}
-        <div className="px-3 pb-6">
+        {/* Bas de sidebar */}
+        <div className="px-3 pb-6 space-y-1">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+              }`
+            }
+          >
+            <MdSettings size={20} />
+            Paramètres
+          </NavLink>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors"
