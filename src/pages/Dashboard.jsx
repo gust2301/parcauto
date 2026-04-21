@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdGarage, MdNotificationsActive, MdPayments, MdAssessment, MdPrint, MdDirectionsCar, MdPerson } from 'react-icons/md'
@@ -10,32 +10,43 @@ import {
 } from 'recharts'
 import Pagination from '../components/Pagination'
 import { getTotalPages, paginate } from '../lib/pagination'
+import { useRole } from '../lib/roleContext'
 
 function fmt(n) { return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA' }
 function fmtDate(d) { if (!d) return '—'; return format(parseISO(d), 'dd/MM/yyyy') }
 
-const FILTRE_OPTIONS = ['Tout', 'Carburant', 'Assurance', 'Contravention']
+const FILTRE_OPTIONS = ['Tout', 'Carburant', 'Assurance', 'Contravention', 'Entretien']
 const COLORS_VEHICULE = ['#1A3C6B','#2563eb','#0891b2','#059669','#7c3aed','#db2777','#ea580c']
 const CARD_PAGE_SIZE = 5
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { isChauffeur, vehiculeIds, scopeLoading } = useRole()
   const [stats, setStats] = useState({ actifs: 0, alertes: 0, coutMois: 0, coutAnnee: 0 })
   const [alertesDocs, setAlertesDocs] = useState([])
   const [coutParVehicule, setCoutParVehicule] = useState([])
   const [filtreVehicule, setFiltreVehicule] = useState('Tout')
+  const [periodeCouts, setPeriodeCouts] = useState('annee')
+  const [vehiculeSearch, setVehiculeSearch] = useState('')
+  const [selectedVehicules, setSelectedVehicules] = useState([])
   const [deplacements, setDeplacements] = useState([])
   const [alertesPage, setAlertesPage] = useState(1)
   const [deplacementsPage, setDeplacementsPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [costsLoading, setCostsLoading] = useState(false)
+  const hasLoaded = useRef(false)
 
   async function loadAll() {
-    setLoading(true)
+    const initialLoad = !hasLoaded.current
+    if (initialLoad) setLoading(true)
+    else setCostsLoading(true)
     const now = new Date()
     const debutMois  = format(startOfMonth(now), 'yyyy-MM-dd')
     const finMois    = format(endOfMonth(now),   'yyyy-MM-dd')
     const debutAnnee = format(startOfYear(now),  'yyyy-MM-dd')
     const finAnnee   = format(endOfYear(now),    'yyyy-MM-dd')
+    const debutCouts = periodeCouts === 'mois' ? debutMois : debutAnnee
+    const finCouts = periodeCouts === 'mois' ? finMois : finAnnee
 
     const [
       { data: vehicules },
@@ -51,50 +62,59 @@ export default function Dashboard() {
       { data: carburantAnnee },
       { data: deps },
     ] = await Promise.all([
-      supabase.from('vehicules').select('id, statut, immatriculation, marque, modele'),
+      isChauffeur && vehiculeIds.length === 0
+        ? supabase.from('vehicules').select('id, statut, immatriculation, marque, modele').limit(0)
+        : (isChauffeur
+          ? supabase.from('vehicules').select('id, statut, immatriculation, marque, modele').in('id', vehiculeIds)
+          : supabase.from('vehicules').select('id, statut, immatriculation, marque, modele')),
       supabase.from('documents').select('*, vehicules(immatriculation, marque, modele)'),
       supabase.from('assurances').select('*, vehicules(immatriculation, marque, modele)').order('date_echeance', { ascending: false }),
-      supabase.from('entretiens').select('cout').gte('date', debutMois).lte('date', finMois),
-      supabase.from('contraventions').select('montant').gte('date', debutMois).lte('date', finMois),
-      supabase.from('assurances').select('montant').gte('date_debut', debutMois).lte('date_debut', finMois),
-      supabase.from('carburant').select('montant').gte('date', debutMois).lte('date', finMois),
-      supabase.from('entretiens').select('cout').gte('date', debutAnnee).lte('date', finAnnee),
-      supabase.from('contraventions').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
-      supabase.from('assurances').select('montant').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
-      supabase.from('carburant').select('montant').gte('date', debutAnnee).lte('date', finAnnee),
+      supabase.from('entretiens').select('cout, vehicule_id').gte('date', debutMois).lte('date', finMois),
+      supabase.from('contraventions').select('montant, vehicule_id').gte('date', debutMois).lte('date', finMois),
+      supabase.from('assurances').select('montant, vehicule_id').gte('date_debut', debutMois).lte('date_debut', finMois),
+      supabase.from('carburant').select('montant, vehicule_id').gte('date', debutMois).lte('date', finMois),
+      supabase.from('entretiens').select('cout, vehicule_id').gte('date', debutAnnee).lte('date', finAnnee),
+      supabase.from('contraventions').select('montant, vehicule_id').gte('date', debutAnnee).lte('date', finAnnee),
+      supabase.from('assurances').select('montant, vehicule_id').gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
+      supabase.from('carburant').select('montant, vehicule_id').gte('date', debutAnnee).lte('date', finAnnee),
       supabase.from('deplacements').select('*, chauffeurs(nom_complet), vehicules(immatriculation)').order('date', { ascending: false }).limit(100),
     ])
 
+    const scoped = rows => isChauffeur ? (rows || []).filter(r => !r.vehicule_id || vehiculeIds.includes(r.vehicule_id)) : (rows || [])
+    const scopedDocs = scoped(docs)
+    const scopedAssurances = scoped(assurances)
+
     const actifs = (vehicules || []).filter(v => v.statut === 'actif').length
-    const coutMois = [entretiensMois, contraventionsMois, assurancesMois, carburantMois]
+    const coutMois = [scoped(entretiensMois), scoped(contraventionsMois), scoped(assurancesMois), scoped(carburantMois)]
       .flat().filter(Boolean).reduce((s, e) => s + (e.cout || e.montant || 0), 0)
-    const coutAnnee = [entretiensAnnee, contraventionsAnnee, assurancesAnnee, carburantAnnee]
+    const coutAnnee = [scoped(entretiensAnnee), scoped(contraventionsAnnee), scoped(assurancesAnnee), scoped(carburantAnnee)]
       .flat().filter(Boolean).reduce((s, e) => s + (e.cout || e.montant || 0), 0)
 
     // Alertes
-    const alertesVisite = (docs || [])
+    const alertesVisite = scopedDocs
       .filter(d => d.type === 'visite_technique' && d.date_echeance)
       .map(d => ({ ...d, jours: differenceInDays(parseISO(d.date_echeance), now), label: 'Visite technique' }))
     const assurancesParVehicule = {}
-    ;(assurances || []).forEach(a => { if (!assurancesParVehicule[a.vehicule_id]) assurancesParVehicule[a.vehicule_id] = a })
+    ;(scopedAssurances || []).forEach(a => { if (!assurancesParVehicule[a.vehicule_id]) assurancesParVehicule[a.vehicule_id] = a })
     const alertesAssurance = Object.values(assurancesParVehicule)
       .filter(a => a.date_echeance)
       .map(a => ({ ...a, type: 'assurance', jours: differenceInDays(parseISO(a.date_echeance), now), label: 'Assurance' }))
     const docsAlerte = [...alertesVisite, ...alertesAssurance].filter(d => d.jours <= 30).sort((a, b) => a.jours - b.jours)
 
-    // Coût par véhicule (annuel) avec détail par catégorie
+    // Coût par véhicule avec détail par catégorie.
     const coutVehicule = await Promise.all((vehicules || []).map(async v => {
       const [{ data: ent }, { data: con }, { data: ass }, { data: carb }] = await Promise.all([
-        supabase.from('entretiens').select('cout').eq('vehicule_id', v.id).gte('date', debutAnnee).lte('date', finAnnee),
-        supabase.from('contraventions').select('montant').eq('vehicule_id', v.id).gte('date', debutAnnee).lte('date', finAnnee),
-        supabase.from('assurances').select('montant').eq('vehicule_id', v.id).gte('date_debut', debutAnnee).lte('date_debut', finAnnee),
-        supabase.from('carburant').select('montant').eq('vehicule_id', v.id).gte('date', debutAnnee).lte('date', finAnnee),
+        supabase.from('entretiens').select('cout').eq('vehicule_id', v.id).gte('date', debutCouts).lte('date', finCouts),
+        supabase.from('contraventions').select('montant').eq('vehicule_id', v.id).gte('date', debutCouts).lte('date', finCouts),
+        supabase.from('assurances').select('montant').eq('vehicule_id', v.id).gte('date_debut', debutCouts).lte('date_debut', finCouts),
+        supabase.from('carburant').select('montant').eq('vehicule_id', v.id).gte('date', debutCouts).lte('date', finCouts),
       ])
       const carburant  = (carb || []).reduce((s, e) => s + (e.montant || 0), 0)
       const assurance  = (ass || []).reduce((s, e) => s + (e.montant || 0), 0)
       const contravention = (con || []).reduce((s, e) => s + (e.montant || 0), 0)
       const entretien  = (ent || []).reduce((s, e) => s + (e.cout || 0), 0)
       return {
+        id: v.id,
         name: v.immatriculation,
         marque: `${v.marque || ''} ${v.modele || ''}`.trim(),
         carburant,
@@ -108,11 +128,15 @@ export default function Dashboard() {
     setStats({ actifs, alertes: docsAlerte.length, coutMois, coutAnnee })
     setAlertesDocs(docsAlerte)
     setCoutParVehicule(coutVehicule.filter(v => v.total > 0).sort((a, b) => b.total - a.total))
-    setDeplacements(deps || [])
+    setDeplacements(scoped(deps))
+    hasLoaded.current = true
     setLoading(false)
+    setCostsLoading(false)
   }
 
-  useEffect(() => { Promise.resolve().then(loadAll) }, [])
+  useEffect(() => {
+    if (!scopeLoading) Promise.resolve().then(loadAll)
+  }, [scopeLoading, isChauffeur, vehiculeIds.join(','), periodeCouts])
 
   const typeLabel = { assurance: 'Assurance', visite_technique: 'Visite technique' }
   const currentAlertesPage = Math.min(alertesPage, getTotalPages(alertesDocs.length, CARD_PAGE_SIZE))
@@ -120,11 +144,31 @@ export default function Dashboard() {
   const paginatedAlertes = paginate(alertesDocs, currentAlertesPage, CARD_PAGE_SIZE)
   const paginatedDeplacements = paginate(deplacements, currentDeplacementsPage, CARD_PAGE_SIZE)
 
+  const selectedVehiculeDetails = coutParVehicule.filter(v => selectedVehicules.includes(v.id))
+  const vehiculesGraph = selectedVehicules.length === 0
+    ? coutParVehicule
+    : selectedVehiculeDetails
+
+  function toggleVehicule(id) {
+    setSelectedVehicules(current => current.includes(id) ? current.filter(v => v !== id) : [...current, id])
+  }
+
+  function addVehiculeSearch(e) {
+    e?.preventDefault()
+    const q = vehiculeSearch.trim().toLowerCase()
+    if (!q) return
+    const matches = coutParVehicule.filter(v => `${v.name} ${v.marque}`.toLowerCase().includes(q))
+    if (matches.length === 0) return
+    setSelectedVehicules(current => [...new Set([...current, ...matches.map(v => v.id)])])
+    setVehiculeSearch('')
+  }
+
   // Données graphe selon filtre
-  const graphData = coutParVehicule.map(v => {
+  const graphData = vehiculesGraph.map(v => {
     if (filtreVehicule === 'Carburant')     return { name: v.name, Carburant: v.carburant }
     if (filtreVehicule === 'Assurance')     return { name: v.name, Assurance: v.assurance }
     if (filtreVehicule === 'Contravention') return { name: v.name, Contravention: v.contravention }
+    if (filtreVehicule === 'Entretien')     return { name: v.name, Entretien: v.entretien }
     return { name: v.name, Carburant: v.carburant, Assurance: v.assurance, Contravention: v.contravention, Entretien: v.entretien }
   })
 
@@ -133,9 +177,10 @@ export default function Dashboard() {
     'Carburant':     [{ key: 'Carburant', color: '#10b981' }],
     'Assurance':     [{ key: 'Assurance', color: '#1A3C6B' }],
     'Contravention': [{ key: 'Contravention', color: '#f97316' }],
+    'Entretien':     [{ key: 'Entretien', color: '#8b5cf6' }],
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
+  if (loading || scopeLoading) return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
 
   return (
     <div className="space-y-6">
@@ -246,19 +291,63 @@ export default function Dashboard() {
 
       {/* Graphe comparaison coûts par véhicule */}
       <div className="card">
-        <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-base font-semibold text-gray-800">Coûts annuels par véhicule</h2>
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-gray-200 text-sm print:hidden">
-            {FILTRE_OPTIONS.map(f => (
-              <button key={f}
-                onClick={() => setFiltreVehicule(f)}
-                className={`shrink-0 px-3 py-1.5 ${filtreVehicule === f ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                {f}
-              </button>
-            ))}
+        <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">Coûts par véhicule</h2>
+            <p className="text-xs text-gray-400 mt-1">
+              {periodeCouts === 'mois' ? 'Vue mensuelle' : 'Vue annuelle'}
+              {costsLoading && <span className="ml-2">Actualisation...</span>}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 print:hidden lg:items-end">
+            <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-gray-200 text-sm">
+              {[
+                { value: 'mois', label: 'Mensuel' },
+                { value: 'annee', label: 'Annuel' },
+              ].map(p => (
+                <button key={p.value}
+                  onClick={() => setPeriodeCouts(p.value)}
+                  className={`shrink-0 px-3 py-1.5 ${periodeCouts === p.value ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-gray-200 text-sm">
+              {FILTRE_OPTIONS.map(f => (
+                <button key={f}
+                  onClick={() => setFiltreVehicule(f)}
+                  className={`shrink-0 px-3 py-1.5 ${filtreVehicule === f ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
+        <div className="mb-4 space-y-3 print:hidden">
+          <form onSubmit={addVehiculeSearch} className="flex max-w-md flex-col gap-2 sm:flex-row">
+            <input
+              className="form-input sm:flex-1"
+              value={vehiculeSearch}
+              onChange={e => setVehiculeSearch(e.target.value)}
+              placeholder="Immatriculation ou modele..."
+            />
+            <button type="submit" className="btn-primary shrink-0">Valider</button>
+          </form>
+          {selectedVehiculeDetails.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedVehiculeDetails.map(v => (
+                <button key={v.id} type="button" onClick={() => toggleVehicule(v.id)}
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-700 hover:bg-red-50 hover:text-red-600">
+                  {v.name} x
+                </button>
+              ))}
+              <button type="button" onClick={() => setSelectedVehicules([])} className="text-xs text-[#1A3C6B] underline">
+                Tout afficher
+              </button>
+            </div>
+          )}
+        </div>
         {graphData.length === 0 ? (
           <p className="text-gray-400 text-sm italic text-center py-8">Aucune donnée pour cette année</p>
         ) : (
@@ -279,3 +368,4 @@ export default function Dashboard() {
     </div>
   )
 }
+

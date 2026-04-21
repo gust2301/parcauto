@@ -15,7 +15,7 @@ const STATUT_CONFIG = {
   reforme: { label: 'Réformé',  cls: 'bg-red-100 text-red-800' },
 }
 
-const FORM_VIDE = { immatriculation: '', marque: '', modele: '', annee: '', kilometrage: '', statut: 'actif' }
+const FORM_VIDE = { immatriculation: '', marque: '', modele: '', annee: '', kilometrage: '', statut: 'actif', nombre_places: '', puissance: '', affectation_lieu: '' }
 
 function Modal({ title, onClose, children }) {
   return (
@@ -72,6 +72,18 @@ function VehiculeForm({ initial, onSave, onCancel, saving }) {
           <label className="form-label">Kilométrage actuel</label>
           <input type="number" className="form-input" value={form.kilometrage} onChange={e => set('kilometrage', e.target.value)} min="0" placeholder="ex: 45000" />
         </div>
+        <div>
+          <label className="form-label">Nombre de places</label>
+          <input type="number" className="form-input" value={form.nombre_places} onChange={e => set('nombre_places', e.target.value)} min="0" placeholder="ex: 5" />
+        </div>
+        <div>
+          <label className="form-label">Puissance</label>
+          <input type="number" className="form-input" value={form.puissance} onChange={e => set('puissance', e.target.value)} min="0" placeholder="ex: 12" />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="form-label">Affectation / lieu</label>
+          <input className="form-input" value={form.affectation_lieu} onChange={e => set('affectation_lieu', e.target.value)} placeholder="ex: DG, DRH, District Thies" />
+        </div>
       </div>
       <div className="flex gap-3 pt-2">
         <button type="button" className="btn-secondary flex-1" onClick={onCancel}>Annuler</button>
@@ -85,7 +97,7 @@ function VehiculeForm({ initial, onSave, onCancel, saving }) {
 
 export default function Vehicules() {
   const navigate = useNavigate()
-  const { isAdmin } = useRole()
+  const { isAdmin, isChauffeur, vehiculeIds, scopeLoading } = useRole()
   const [vehicules, setVehicules] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)   // ajout
@@ -98,11 +110,22 @@ export default function Vehicules() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (!scopeLoading) load()
+  }, [scopeLoading, isChauffeur, vehiculeIds.join(',')])
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('vehicules').select('*').order('created_at', { ascending: false })
+    let query = supabase.from('vehicules').select('*').order('created_at', { ascending: false })
+    if (isChauffeur) {
+      if (vehiculeIds.length === 0) {
+        setVehicules([])
+        setLoading(false)
+        return
+      }
+      query = query.in('id', vehiculeIds)
+    }
+    const { data } = await query
     setVehicules(data || [])
     setLoading(false)
   }
@@ -116,6 +139,9 @@ export default function Vehicules() {
       modele: form.modele || null,
       annee: form.annee ? parseInt(form.annee) : null,
       kilometrage: form.kilometrage ? parseInt(form.kilometrage) : 0,
+      nombre_places: form.nombre_places ? parseInt(form.nombre_places) : null,
+      puissance: form.puissance ? parseInt(form.puissance) : null,
+      affectation_lieu: form.affectation_lieu || null,
       statut: form.statut,
     })
     setShowModal(false)
@@ -132,6 +158,9 @@ export default function Vehicules() {
       modele: form.modele || null,
       annee: form.annee ? parseInt(form.annee) : null,
       kilometrage: form.kilometrage ? parseInt(form.kilometrage) : 0,
+      nombre_places: form.nombre_places ? parseInt(form.nombre_places) : null,
+      puissance: form.puissance ? parseInt(form.puissance) : null,
+      affectation_lieu: form.affectation_lieu || null,
       statut: form.statut,
     }).eq('id', editVehicule.id)
     setEditVehicule(null)
@@ -192,6 +221,9 @@ export default function Vehicules() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Marque / Modèle</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Année</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Kilométrage</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Places</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Puissance</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Affectation</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Statut</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
               </tr>
@@ -199,7 +231,7 @@ export default function Vehicules() {
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400 italic">Aucun véhicule</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400 italic">Aucun véhicule</td>
                 </tr>
               ) : paginated.map(v => {
                 const sc = STATUT_CONFIG[v.statut] || STATUT_CONFIG.actif
@@ -213,6 +245,9 @@ export default function Vehicules() {
                     <td className="px-4 py-3 text-gray-600">
                       {v.kilometrage != null ? new Intl.NumberFormat('fr-FR').format(v.kilometrage) + ' km' : '—'}
                     </td>
+                    <td className="px-4 py-3 text-gray-600">{v.nombre_places || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{v.puissance || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{v.affectation_lieu || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sc.cls}`}>{sc.label}</span>
                     </td>
@@ -292,6 +327,9 @@ export default function Vehicules() {
               annee: editVehicule.annee?.toString() || '',
               kilometrage: editVehicule.kilometrage?.toString() || '',
               statut: editVehicule.statut || 'actif',
+              nombre_places: editVehicule.nombre_places?.toString() || '',
+              puissance: editVehicule.puissance?.toString() || '',
+              affectation_lieu: editVehicule.affectation_lieu || '',
             }}
             onSave={handleEdit}
             onCancel={() => setEditVehicule(null)}

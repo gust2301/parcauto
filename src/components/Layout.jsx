@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { MdDashboard, MdDirectionsCar, MdLogout, MdPerson, MdSettings } from 'react-icons/md'
 import logo from '../assets/sn-cfs-flotte-favicon-transparent-large.png'
 import { useRole } from '../lib/roleContext'
+import { ROLE_LABELS } from '../lib/roles'
 
 const navItems = [
   { to: '/dashboard', label: 'Tableau de bord', icon: MdDashboard },
@@ -13,7 +14,7 @@ const navItems = [
 
 export default function Layout({ children }) {
   const navigate = useNavigate()
-  const { isAdmin } = useRole()
+  const { isAdmin, role } = useRole()
   const visibleNavItems = isAdmin
     ? [...navItems, { to: '/settings', label: 'Parametres', icon: MdSettings }]
     : navItems
@@ -55,7 +56,7 @@ export default function Layout({ children }) {
 
         <div className="px-3 pb-6 space-y-1">
           <div className="px-3 py-2 text-[11px] uppercase tracking-wide text-white/40">
-            {isAdmin ? 'Admin' : 'Lecture seule'}
+            {ROLE_LABELS[role] || 'Lecture seule'}
           </div>
           <button
             onClick={handleLogout}
@@ -73,7 +74,7 @@ export default function Layout({ children }) {
             <img src={logo} alt="SN-CFS Flotte" className="h-9 w-9 rounded-lg object-contain" />
             <div>
               <p className="text-sm font-bold leading-tight text-[#1A3C6B]">SN-CFS Flotte</p>
-              <p className="text-xs text-gray-400">{isAdmin ? 'Admin' : 'Lecture seule'}</p>
+              <p className="text-xs text-gray-400">{ROLE_LABELS[role] || 'Lecture seule'}</p>
             </div>
           </div>
           <button

@@ -25,7 +25,34 @@ function fmtDate(d) {
 function fmtNum(n) {
   return n != null ? new Intl.NumberFormat('fr-FR').format(n) : '—'
 }
+function getPeriodTotals(rows, dateKey, amountKey) {
+  const now = new Date()
+  return (rows || []).reduce((acc, row) => {
+    if (!row[dateKey]) return acc
+    const date = parseISO(row[dateKey])
+    const amount = Number(row[amountKey] || 0)
+    if (date.getFullYear() === now.getFullYear()) {
+      acc.annuel += amount
+      if (date.getMonth() === now.getMonth()) acc.mensuel += amount
+    }
+    return acc
+  }, { mensuel: 0, annuel: 0 })
+}
 
+function CostSummary({ mensuel, annuel }) {
+  return (
+    <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+        <p className="text-xs text-gray-400">Total mensuel</p>
+        <p className="text-lg font-bold text-[#1A3C6B]">{fmtNum(mensuel)} FCFA</p>
+      </div>
+      <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+        <p className="text-xs text-gray-400">Total annuel</p>
+        <p className="text-lg font-bold text-[#1A3C6B]">{fmtNum(annuel)} FCFA</p>
+      </div>
+    </div>
+  )
+}
 const STATUT_CONFIG = {
   actif:   { label: 'Actif',    cls: 'bg-green-100 text-green-800' },
   panne:   { label: 'En panne', cls: 'bg-orange-100 text-orange-800' },
@@ -50,10 +77,10 @@ function ConfirmDelete({ onConfirm, onCancel }) {
 }
 
 // ── Boutons actions ──────────────────────────────────────────────────────────
-function ActionBtns({ onEdit, onDelete }) {
+function ActionBtns({ onEdit, onDelete, canManage }) {
   const { isAdmin } = useRole()
   const [confirming, setConfirming] = useState(false)
-  if (!isAdmin) return null
+  if (!(canManage ?? isAdmin)) return null
   if (confirming) {
     return <ConfirmDelete onConfirm={onDelete} onCancel={() => setConfirming(false)} />
   }
@@ -149,6 +176,7 @@ function OngletEntretiens({ vehiculeId }) {
   ]
 
   const filtered = filterSort(data, search, ['type_intervention', 'pieces', 'garage', 'commentaire'], sortKey, sortDir)
+  const totals = getPeriodTotals(data, 'date', 'cout')
 
   return (
     <div>
@@ -177,6 +205,7 @@ function OngletEntretiens({ vehiculeId }) {
           ]}
         />
       </div>
+      <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
       <DataTable colonnes={cols} donnees={filtered} vide="Aucun entretien enregistré" />
 
       {editing && (
@@ -232,7 +261,7 @@ const MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oc
 
 function OngletCarburant({ vehiculeId }) {
   const navigate = useNavigate()
-  const { isAdmin } = useRole()
+  const { user, isAdmin, isChauffeur } = useRole()
   const [data, setData] = useState([])
   const [vue, setVue] = useState('pleins')
   const [annee, setAnnee] = useState(new Date().getFullYear())
@@ -250,7 +279,7 @@ function OngletCarburant({ vehiculeId }) {
   }
 
   async function handleDelete(id) {
-    if (!isAdmin) return
+    if (!isAdmin && !isChauffeur) return
     await supabase.from('carburant').delete().eq('id', id)
     load()
   }
@@ -268,6 +297,7 @@ function OngletCarburant({ vehiculeId }) {
     ? (consoValues.reduce((a, b) => a + b, 0) / consoValues.length).toFixed(1) : null
   const totalLitres = data.reduce((s, r) => s + parseFloat(r.litres || 0), 0)
   const totalMontant = data.reduce((s, r) => s + (r.montant || 0), 0)
+  const totals = getPeriodTotals(data, 'date', 'montant')
 
   const statsMensuelles = Array.from({ length: 12 }, (_, i) => {
     const pleins = data.filter(r => {
@@ -299,7 +329,11 @@ function OngletCarburant({ vehiculeId }) {
     { label: 'Station',     key: 'station' },
     { label: 'N° carte',    key: 'reference_bon' },
     { label: '',            key: '_actions',        render: r => (
-      <ActionBtns onEdit={() => setEditData(r)} onDelete={() => handleDelete(r.id)} />
+      <ActionBtns
+        canManage={isAdmin || (isChauffeur && r.created_by === user?.id && (r.status || 'brouillon') === 'brouillon')}
+        onEdit={() => setEditData(r)}
+        onDelete={() => handleDelete(r.id)}
+      />
     )},
   ]
 
@@ -319,11 +353,11 @@ function OngletCarburant({ vehiculeId }) {
             <button onClick={() => setVue('pleins')} className={`px-3 py-1.5 ${vue === 'pleins' ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Pleins</button>
             <button onClick={() => setVue('stats')}  className={`px-3 py-1.5 ${vue === 'stats'  ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Suivi mensuel</button>
           </div>
-          <AdminOnly>
+          {(isAdmin || isChauffeur) && (
             <button className="btn-primary flex items-center justify-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/carburant/new`)}>
               <MdAdd size={18} /> Ajouter un plein
             </button>
-          </AdminOnly>
+          )}
         </div>
       </div>
 
@@ -345,6 +379,7 @@ function OngletCarburant({ vehiculeId }) {
               ]}
             />
           </div>
+          <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
           <DataTable colonnes={cols} donnees={filterSort(avecConso, search, ['type_carburant', 'station', 'reference_bon'], sortKey, sortDir)} vide="Aucun plein enregistré" />
         </>
       )}
@@ -526,6 +561,7 @@ function OngletDocuments({ vehiculeId }) {
   }
 
   const assuranceActive = assurances[0]
+  const totals = getPeriodTotals(assurances, 'date_debut', 'montant')
 
   const colsAssurance = [
     { label: 'Période',        key: 'periode',       render: r => `${fmtDate(r.date_debut)} → ${fmtDate(r.date_echeance)}` },
@@ -603,6 +639,7 @@ function OngletDocuments({ vehiculeId }) {
               ]}
             />
           </div>
+          <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
           <DataTable colonnes={colsAssurance} donnees={filterSort(assurances, assSearch, ['assureur', 'numero_police'], assSortKey, assSortDir)} vide="Aucun contrat d'assurance enregistré" />
         </div>
       </div>
@@ -696,6 +733,7 @@ function OngletContraventions({ vehiculeId }) {
   ]
 
   const filtered = filterSort(data, search, ['lieu', 'conducteur', 'nature', 'statut'], sortKey, sortDir)
+  const totals = getPeriodTotals(data, 'date', 'montant')
 
   return (
     <div>
@@ -724,6 +762,7 @@ function OngletContraventions({ vehiculeId }) {
           ]}
         />
       </div>
+      <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
       <DataTable colonnes={cols} donnees={filtered} vide="Aucune contravention" />
 
       {editData && (
@@ -743,7 +782,7 @@ function OngletContraventions({ vehiculeId }) {
 export default function VehiculeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isAdmin } = useRole()
+  const { isAdmin, isChauffeur, vehiculeIds, scopeLoading } = useRole()
   const [searchParams] = useSearchParams()
   const [vehicule, setVehicule] = useState(null)
   const tabParam = searchParams.get('tab')
@@ -755,7 +794,9 @@ export default function VehiculeDetail() {
   const [editingKm, setEditingKm] = useState(false)
   const [newKm, setNewKm] = useState('')
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    if (!scopeLoading) load()
+  }, [id, scopeLoading])
 
   async function load() {
     setLoading(true)
@@ -778,7 +819,8 @@ export default function VehiculeDetail() {
     load()
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
+  if (loading || scopeLoading) return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
+  if (isChauffeur && !vehiculeIds.includes(id)) return <div className="text-center text-red-500 mt-10">Acces non autorise a ce vehicule</div>
   if (!vehicule) return <div className="text-center text-red-500 mt-10">Véhicule introuvable</div>
 
   const sc = STATUT_CONFIG[vehicule.statut] || STATUT_CONFIG.actif
@@ -822,6 +864,11 @@ export default function VehiculeDetail() {
             <p className="text-gray-600">
               {[vehicule.marque, vehicule.modele, vehicule.annee && `(${vehicule.annee})`].filter(Boolean).join(' ')}
             </p>
+            <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+              {vehicule.nombre_places != null && <span>Places : <span className="font-medium text-gray-700">{vehicule.nombre_places}</span></span>}
+              {vehicule.puissance != null && <span>Puissance : <span className="font-medium text-gray-700">{vehicule.puissance}</span></span>}
+              {vehicule.affectation_lieu && <span>Affectation : <span className="font-medium text-gray-700">{vehicule.affectation_lieu}</span></span>}
+            </div>
           </div>
           <div className="text-right">
             {editingKm && isAdmin ? (
@@ -862,3 +909,4 @@ export default function VehiculeDetail() {
     </div>
   )
 }
+

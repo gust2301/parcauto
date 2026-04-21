@@ -58,7 +58,7 @@ export default function App() {
         <Route path="/vehicules"   element={<ProtectedRoute session={session}><Vehicules /></ProtectedRoute>} />
         <Route path="/vehicules/:id" element={<ProtectedRoute session={session}><VehiculeDetail /></ProtectedRoute>} />
         <Route path="/vehicules/:id/entretien/new"    element={<ProtectedRoute session={session}><RequireAdmin><EntretienForm /></RequireAdmin></ProtectedRoute>} />
-        <Route path="/vehicules/:id/carburant/new"    element={<ProtectedRoute session={session}><RequireAdmin><CarburantForm /></RequireAdmin></ProtectedRoute>} />
+        <Route path="/vehicules/:id/carburant/new"    element={<ProtectedRoute session={session}><CarburantForm /></ProtectedRoute>} />
         <Route path="/vehicules/:id/contravention/new" element={<ProtectedRoute session={session}><RequireAdmin><ContraventionForm /></RequireAdmin></ProtectedRoute>} />
         <Route path="/chauffeurs"  element={<ProtectedRoute session={session}><Chauffeurs /></ProtectedRoute>} />
         <Route path="/settings"    element={<ProtectedRoute session={session}><RequireAdmin><Settings /></RequireAdmin></ProtectedRoute>} />

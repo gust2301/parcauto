@@ -47,13 +47,20 @@ function Modal({ title, onClose, children }) {
 
 // ── Fiche détail chauffeur ───────────────────────────────────────────────────
 function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
-  const { isAdmin } = useRole()
+  const { user, isAdmin, isChauffeur } = useRole()
+  const canManageDeplacements = isAdmin || (isChauffeur && chauffeur.user_id === user?.id)
   const [deplacements, setDeplacements] = useState([])
   const [contraventions, setContraventions] = useState([])
+  const [affectations, setAffectations] = useState([])
+  const [allAffectations, setAllAffectations] = useState([])
   const [showFormDep, setShowFormDep] = useState(false)
   const [editingDep, setEditingDep] = useState(null)
   const [confirmDel, setConfirmDel] = useState(null)
   const [vehiculeSearch, setVehiculeSearch] = useState('')
+  const [assignSearch, setAssignSearch] = useState('')
+  const [assignPage, setAssignPage] = useState(1)
+  const [assignSaving, setAssignSaving] = useState(null)
+  const [assignError, setAssignError] = useState('')
   const [formDep, setFormDep] = useState({
     date: new Date().toISOString().split('T')[0],
     vehicule_id: '',
@@ -68,7 +75,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
   useEffect(() => { loadAll() }, [chauffeur.id])
 
   async function loadAll() {
-    const [{ data: deps }, { data: contras }] = await Promise.all([
+    const [{ data: deps }, { data: contras }, { data: affs, error: affsError }] = await Promise.all([
       supabase.from('deplacements')
         .select('*, vehicules(immatriculation, marque, modele)')
         .eq('chauffeur_id', chauffeur.id)
@@ -77,9 +84,46 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
         .select('*, vehicules(immatriculation)')
         .eq('chauffeur_id', chauffeur.id)
         .order('date', { ascending: false }),
+      supabase.from('chauffeur_vehicules')
+        .select('*')
+        .eq('chauffeur_id', chauffeur.id)
     ])
     setDeplacements(deps || [])
     setContraventions(contras || [])
+    if (affsError) setAssignError(`Chargement des affectations impossible : ${affsError.message}`)
+    setAllAffectations(affs || [])
+    setAffectations((affs || []).filter(a => a.active))
+  }
+
+  async function toggleAffectation(vehiculeId) {
+    if (!isAdmin) return
+    setAssignSaving(vehiculeId)
+    setAssignError('')
+    const activeLink = affectations.find(a => a.vehicule_id === vehiculeId)
+    const inactiveLink = allAffectations.find(a => a.vehicule_id === vehiculeId && !a.active)
+    let result
+
+    if (activeLink) {
+      result = await supabase
+        .from('chauffeur_vehicules')
+        .update({ active: false, date_fin: new Date().toISOString().split('T')[0] })
+        .eq('id', activeLink.id)
+    } else if (inactiveLink) {
+      result = await supabase
+        .from('chauffeur_vehicules')
+        .update({ active: true, date_debut: new Date().toISOString().split('T')[0], date_fin: null })
+        .eq('id', inactiveLink.id)
+    } else {
+      result = await supabase
+        .from('chauffeur_vehicules')
+        .insert({ chauffeur_id: chauffeur.id, vehicule_id: vehiculeId, active: true })
+    }
+    if (result?.error) {
+      setAssignError(`Affectation impossible : ${result.error.message}`)
+    } else {
+      await loadAll()
+    }
+    setAssignSaving(null)
   }
 
   async function saveInfo() {
@@ -95,7 +139,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
 
   async function saveDep(e) {
     e.preventDefault()
-    if (!isAdmin) return
+    if (!canManageDeplacements) return
     setSaving(true)
     const payload = {
       chauffeur_id: chauffeur.id,
@@ -105,6 +149,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
       montant_journalier: formDep.montant_journalier ? parseInt(formDep.montant_journalier) : 0,
       status: formDep.status,
     }
+    if (!editingDep) payload.created_by = user?.id || null
     if (editingDep) {
       await supabase.from('deplacements').update(payload).eq('id', editingDep)
     } else {
@@ -118,13 +163,14 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
   }
 
   async function deleteDep(id) {
-    if (!isAdmin) return
+    if (!canManageDeplacements) return
     await supabase.from('deplacements').delete().eq('id', id)
     setConfirmDel(null)
     loadAll()
   }
 
   function startEditDep(d) {
+    if (!isAdmin && d.created_by !== user?.id) return
     setEditingDep(d.id)
     setFormDep({
       date: d.date,
@@ -140,6 +186,18 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
     v.immatriculation.toLowerCase().includes(vehiculeSearch.toLowerCase()) ||
     `${v.marque} ${v.modele}`.toLowerCase().includes(vehiculeSearch.toLowerCase())
   )
+
+  const assignedIds = new Set(affectations.map(a => a.vehicule_id))
+  const affectationVehicules = vehicules
+    .filter(v => `${v.immatriculation} ${v.marque || ''} ${v.modele || ''} ${v.affectation_lieu || ''}`.toLowerCase().includes(assignSearch.toLowerCase()))
+    .sort((a, b) => {
+      const assignedDiff = Number(assignedIds.has(b.id)) - Number(assignedIds.has(a.id))
+      if (assignedDiff !== 0) return assignedDiff
+      return (a.immatriculation || '').localeCompare(b.immatriculation || '')
+    })
+  const ASSIGN_PER_PAGE = 6
+  const currentAssignPage = Math.min(assignPage, getTotalPages(affectationVehicules.length, ASSIGN_PER_PAGE))
+  const paginatedAffectationVehicules = paginate(affectationVehicules, currentAssignPage, ASSIGN_PER_PAGE)
 
   const selectedVehicule = vehicules.find(v => v.id === formDep.vehicule_id)
 
@@ -158,7 +216,6 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
         </button>
       </div>
 
-      {/* Info chauffeur */}
       <div className="card">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">
@@ -209,19 +266,78 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
         </div>
       </div>
 
+      {isAdmin && (
+        <div className="card print:hidden">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Affectation vehicules</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {affectations.length} vehicule{affectations.length > 1 ? 's' : ''} affecte{affectations.length > 1 ? 's' : ''}
+              </p>
+            </div>
+            <input
+              className="form-input sm:max-w-xs"
+              value={assignSearch}
+              onChange={e => { setAssignSearch(e.target.value); setAssignPage(1) }}
+              placeholder="Rechercher un vehicule..."
+            />
+          </div>
+          {assignError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {assignError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {paginatedAffectationVehicules.map(v => {
+              const checked = assignedIds.has(v.id)
+              const savingThis = assignSaving === v.id
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => toggleAffectation(v.id)}
+                  disabled={!!assignSaving}
+                  className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                    checked ? 'border-[#1A3C6B] bg-blue-50' : 'border-gray-200 bg-white hover:border-[#1A3C6B]/40 hover:bg-gray-50'
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-gray-800">{v.immatriculation}</span>
+                    <span className="block truncate text-xs text-gray-500">{v.marque} {v.modele}</span>
+                    {v.affectation_lieu && <span className="block truncate text-xs text-gray-400">{v.affectation_lieu}</span>}
+                  </span>
+                  <span className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                    checked ? 'bg-[#1A3C6B] text-white' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {savingThis ? '...' : (checked ? 'Affecte' : 'Affecter')}
+                  </span>
+                </button>
+              )
+            })}
+            {affectationVehicules.length === 0 && <p className="text-sm text-gray-400 italic">Aucun vehicule disponible</p>}
+          </div>
+          <Pagination
+            total={affectationVehicules.length}
+            page={currentAssignPage}
+            perPage={ASSIGN_PER_PAGE}
+            onPage={setAssignPage}
+          />
+        </div>
+      )}
       {/* Déplacements */}
       <div className="card">
         <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-semibold text-gray-800">Déplacements</h2>
-          <AdminOnly>
+          {canManageDeplacements && (
             <button className="btn-primary flex w-full items-center justify-center gap-2 text-sm sm:w-auto"
               onClick={() => { setEditingDep(null); setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' }); setShowFormDep(true) }}>
               <MdAdd size={16} /> Nouveau déplacement
             </button>
-          </AdminOnly>
+          )}
         </div>
 
-        {showFormDep && isAdmin && (
+        {showFormDep && canManageDeplacements && (
           <form onSubmit={saveDep} className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
             <p className="text-sm font-medium text-gray-700 mb-3">{editingDep ? 'Modifier le déplacement' : 'Nouveau déplacement'}</p>
             <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-3">
@@ -313,7 +429,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
                       </span>
                     </td>
                     <td className="px-4 py-2">
-                      {isAdmin && (confirmDel === d.id ? (
+                      {(isAdmin || d.created_by === user?.id) && (confirmDel === d.id ? (
                         <ConfirmDelete onConfirm={() => deleteDep(d.id)} onCancel={() => setConfirmDel(null)} />
                       ) : (
                         <div className="flex items-center gap-1">
@@ -386,7 +502,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
 
 // ── Page principale Chauffeurs ───────────────────────────────────────────────
 export default function Chauffeurs() {
-  const { isAdmin } = useRole()
+  const { user, isAdmin, isChauffeur, vehiculeIds, scopeLoading } = useRole()
   const [chauffeurs, setChauffeurs] = useState([])
   const [vehicules, setVehicules] = useState([])
   const [selected, setSelected] = useState(null)
@@ -404,7 +520,9 @@ export default function Chauffeurs() {
   const [statsPage, setStatsPage] = useState(1)
   const STATS_PER_PAGE = 5
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => {
+    if (!scopeLoading) loadAll()
+  }, [scopeLoading, isChauffeur, vehiculeIds.join(','), user?.id])
 
   const filteredChauffeurs = filterSort(chauffeurs, search, ['nom_complet', 'matricule', 'grade'], sortKey, sortDir)
   const currentPage = Math.min(page, getTotalPages(filteredChauffeurs.length, perPage))
@@ -413,9 +531,19 @@ export default function Chauffeurs() {
 
   async function loadAll() {
     setLoading(true)
+    let chauffeursQuery = supabase.from('chauffeurs').select('*').order('nom_complet')
+    let vehiculesQuery = supabase.from('vehicules').select('id, immatriculation, marque, modele, affectation_lieu').order('immatriculation')
+    if (isChauffeur) {
+      chauffeursQuery = chauffeursQuery.eq('user_id', user?.id)
+      if (vehiculeIds.length === 0) {
+        vehiculesQuery = vehiculesQuery.limit(0)
+      } else {
+        vehiculesQuery = vehiculesQuery.in('id', vehiculeIds)
+      }
+    }
     const [{ data: ch }, { data: veh }] = await Promise.all([
-      supabase.from('chauffeurs').select('*').order('nom_complet'),
-      supabase.from('vehicules').select('id, immatriculation, marque, modele').order('immatriculation'),
+      chauffeursQuery,
+      vehiculesQuery,
     ])
     setChauffeurs(ch || [])
     setVehicules(veh || [])

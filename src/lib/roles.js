@@ -1,6 +1,14 @@
 export const ROLES = {
   ADMIN: 'admin',
-  USER: 'user',
+  VIEWER: 'viewer',
+  CHAUFFEUR: 'chauffeur',
+  USER: 'viewer',
+}
+
+export const ROLE_LABELS = {
+  [ROLES.ADMIN]: 'Admin',
+  [ROLES.VIEWER]: 'Lecture seule',
+  [ROLES.CHAUFFEUR]: 'Chauffeur',
 }
 
 export function getUserRole(user) {
@@ -10,4 +18,12 @@ export function getUserRole(user) {
 
 export function isAdminRole(role) {
   return String(role).trim().toLowerCase() === ROLES.ADMIN
+}
+
+export function isViewerRole(role) {
+  return String(role).trim().toLowerCase() === ROLES.VIEWER
+}
+
+export function isChauffeurRole(role) {
+  return String(role).trim().toLowerCase() === ROLES.CHAUFFEUR
 }
