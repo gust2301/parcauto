@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdArrowBack, MdClose } from 'react-icons/md'
+import { AdminRequiredMessage } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 function getInitialForm(editData) {
   return {
@@ -19,6 +21,7 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
   const navigateHook = useNavigate()
   const id = editData ? editData.vehicule_id : params.id
   const isModal = !!editData
+  const { isAdmin } = useRole()
 
   const [chauffeurs, setChauffeurs] = useState([])
   const [chauffeurSearch, setChauffeurSearch] = useState('')
@@ -56,6 +59,7 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!isAdmin) return
     setSaving(true)
     setError('')
     const payload = {
@@ -195,6 +199,16 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
         </button>
       </div>
     </form>
+  )
+
+  if (!isAdmin) return isModal ? <AdminRequiredMessage /> : (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1"
+        onClick={() => navigateHook(`/vehicules/${id}?tab=contraventions`)}>
+        <MdArrowBack size={16} /> Retour au véhicule
+      </button>
+      <AdminRequiredMessage />
+    </div>
   )
 
   if (isModal) return content

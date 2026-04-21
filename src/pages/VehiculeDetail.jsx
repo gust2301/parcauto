@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import AlerteBadge from '../components/AlerteBadge'
@@ -15,6 +15,8 @@ import CarburantForm from './CarburantForm'
 import ContraventionForm from './ContraventionForm'
 import SearchSort from '../components/SearchSort'
 import { filterSort } from '../lib/searchSort'
+import { AdminOnly } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -23,16 +25,43 @@ function fmtDate(d) {
 function fmtNum(n) {
   return n != null ? new Intl.NumberFormat('fr-FR').format(n) : '—'
 }
+function getPeriodTotals(rows, dateKey, amountKey) {
+  const now = new Date()
+  return (rows || []).reduce((acc, row) => {
+    if (!row[dateKey]) return acc
+    const date = parseISO(row[dateKey])
+    const amount = Number(row[amountKey] || 0)
+    if (date.getFullYear() === now.getFullYear()) {
+      acc.annuel += amount
+      if (date.getMonth() === now.getMonth()) acc.mensuel += amount
+    }
+    return acc
+  }, { mensuel: 0, annuel: 0 })
+}
 
+function CostSummary({ mensuel, annuel }) {
+  return (
+    <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+        <p className="text-xs text-gray-400">Total mensuel</p>
+        <p className="text-lg font-bold text-[#1A3C6B]">{fmtNum(mensuel)} FCFA</p>
+      </div>
+      <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+        <p className="text-xs text-gray-400">Total annuel</p>
+        <p className="text-lg font-bold text-[#1A3C6B]">{fmtNum(annuel)} FCFA</p>
+      </div>
+    </div>
+  )
+}
 const STATUT_CONFIG = {
   actif:   { label: 'Actif',    cls: 'bg-green-100 text-green-800' },
   panne:   { label: 'En panne', cls: 'bg-orange-100 text-orange-800' },
   reforme: { label: 'Réformé',  cls: 'bg-red-100 text-red-800' },
 }
-const TABS = ['Entretiens', 'Carburant', 'Documents', 'Contraventions']
-const TAB_KEYS = ['entretiens', 'carburant', 'documents', 'contraventions']
+const TABS = ['Entretiens', 'Carburant', 'Documents', 'Contraventions', 'Péages']
+const TAB_KEYS = ['entretiens', 'carburant', 'documents', 'contraventions', 'peages']
 
-// ── Confirmation suppression ─────────────────────────────────────────────────
+// Confirmation suppression
 function ConfirmDelete({ onConfirm, onCancel }) {
   return (
     <div className="flex items-center gap-2">
@@ -47,9 +76,11 @@ function ConfirmDelete({ onConfirm, onCancel }) {
   )
 }
 
-// ── Boutons actions ──────────────────────────────────────────────────────────
-function ActionBtns({ onEdit, onDelete }) {
+// Boutons actions
+function ActionBtns({ onEdit, onDelete, canManage }) {
+  const { isAdmin } = useRole()
   const [confirming, setConfirming] = useState(false)
+  if (!(canManage ?? isAdmin)) return null
   if (confirming) {
     return <ConfirmDelete onConfirm={onDelete} onCancel={() => setConfirming(false)} />
   }
@@ -65,7 +96,7 @@ function ActionBtns({ onEdit, onDelete }) {
   )
 }
 
-// ── Modal inline ─────────────────────────────────────────────────────────────
+// Modal inline
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -82,9 +113,10 @@ function Modal({ title, onClose, children }) {
   )
 }
 
-// ── Onglet Entretiens ────────────────────────────────────────────────────────
+// Onglet Entretiens
 function OngletEntretiens({ vehiculeId }) {
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [data, setData] = useState([])
   const [editing, setEditing] = useState(null)
   const [editForm, setEditForm] = useState({})
@@ -102,11 +134,13 @@ function OngletEntretiens({ vehiculeId }) {
   }
 
   function startEdit(r) {
+    if (!isAdmin) return
     setEditing(r.id)
     setEditForm({ ...r })
   }
 
   async function saveEdit() {
+    if (!isAdmin) return
     setSaving(true)
     await supabase.from('entretiens').update({
       date: editForm.date,
@@ -123,6 +157,7 @@ function OngletEntretiens({ vehiculeId }) {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin) return
     await supabase.from('entretiens').delete().eq('id', id)
     load()
   }
@@ -141,6 +176,7 @@ function OngletEntretiens({ vehiculeId }) {
   ]
 
   const filtered = filterSort(data, search, ['type_intervention', 'pieces', 'garage', 'commentaire'], sortKey, sortDir)
+  const totals = getPeriodTotals(data, 'date', 'cout')
 
   return (
     <div>
@@ -148,9 +184,11 @@ function OngletEntretiens({ vehiculeId }) {
         <button className="print:hidden btn-secondary flex items-center gap-2 text-sm" onClick={() => window.print()}>
           <MdPrint size={16} /> Imprimer
         </button>
-        <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/entretien/new`)}>
-          <MdAdd size={18} /> Ajouter un entretien
-        </button>
+        <AdminOnly>
+          <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/entretien/new`)}>
+            <MdAdd size={18} /> Ajouter un entretien
+          </button>
+        </AdminOnly>
       </div>
       <div className="mb-4">
         <SearchSort
@@ -167,6 +205,7 @@ function OngletEntretiens({ vehiculeId }) {
           ]}
         />
       </div>
+      <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
       <DataTable colonnes={cols} donnees={filtered} vide="Aucun entretien enregistré" />
 
       {editing && (
@@ -217,11 +256,12 @@ function OngletEntretiens({ vehiculeId }) {
   )
 }
 
-// ── Onglet Carburant ─────────────────────────────────────────────────────────
+// Onglet Carburant
 const MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
 function OngletCarburant({ vehiculeId }) {
   const navigate = useNavigate()
+  const { user, isAdmin, isChauffeur } = useRole()
   const [data, setData] = useState([])
   const [vue, setVue] = useState('pleins')
   const [annee, setAnnee] = useState(new Date().getFullYear())
@@ -239,6 +279,7 @@ function OngletCarburant({ vehiculeId }) {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin && !isChauffeur) return
     await supabase.from('carburant').delete().eq('id', id)
     load()
   }
@@ -256,6 +297,7 @@ function OngletCarburant({ vehiculeId }) {
     ? (consoValues.reduce((a, b) => a + b, 0) / consoValues.length).toFixed(1) : null
   const totalLitres = data.reduce((s, r) => s + parseFloat(r.litres || 0), 0)
   const totalMontant = data.reduce((s, r) => s + (r.montant || 0), 0)
+  const totals = getPeriodTotals(data, 'date', 'montant')
 
   const statsMensuelles = Array.from({ length: 12 }, (_, i) => {
     const pleins = data.filter(r => {
@@ -287,7 +329,11 @@ function OngletCarburant({ vehiculeId }) {
     { label: 'Station',     key: 'station' },
     { label: 'N° carte',    key: 'reference_bon' },
     { label: '',            key: '_actions',        render: r => (
-      <ActionBtns onEdit={() => setEditData(r)} onDelete={() => handleDelete(r.id)} />
+      <ActionBtns
+        canManage={isAdmin || (isChauffeur && r.created_by === user?.id && (r.status || 'brouillon') === 'brouillon')}
+        onEdit={() => setEditData(r)}
+        onDelete={() => handleDelete(r.id)}
+      />
     )},
   ]
 
@@ -307,9 +353,11 @@ function OngletCarburant({ vehiculeId }) {
             <button onClick={() => setVue('pleins')} className={`px-3 py-1.5 ${vue === 'pleins' ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Pleins</button>
             <button onClick={() => setVue('stats')}  className={`px-3 py-1.5 ${vue === 'stats'  ? 'bg-[#1A3C6B] text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Suivi mensuel</button>
           </div>
-          <button className="btn-primary flex items-center justify-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/carburant/new`)}>
-            <MdAdd size={18} /> Ajouter un plein
-          </button>
+          {(isAdmin || isChauffeur) && (
+            <button className="btn-primary flex items-center justify-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/carburant/new`)}>
+              <MdAdd size={18} /> Ajouter un plein
+            </button>
+          )}
         </div>
       </div>
 
@@ -331,6 +379,7 @@ function OngletCarburant({ vehiculeId }) {
               ]}
             />
           </div>
+          <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
           <DataTable colonnes={cols} donnees={filterSort(avecConso, search, ['type_carburant', 'station', 'reference_bon'], sortKey, sortDir)} vide="Aucun plein enregistré" />
         </>
       )}
@@ -427,8 +476,9 @@ function OngletCarburant({ vehiculeId }) {
   )
 }
 
-// ── Onglet Documents ─────────────────────────────────────────────────────────
+// Onglet Documents
 function OngletDocuments({ vehiculeId }) {
+  const { isAdmin } = useRole()
   const [visite, setVisite] = useState(null)
   const [editingVisite, setEditingVisite] = useState(false)
   const [formVisite, setFormVisite] = useState({ date_realisation: '', date_echeance: '' })
@@ -457,6 +507,7 @@ function OngletDocuments({ vehiculeId }) {
   }
 
   async function handleSaveVisite() {
+    if (!isAdmin) return
     setSavingVisite(true)
     const payload = { vehicule_id: vehiculeId, type: 'visite_technique', date_realisation: formVisite.date_realisation || null, date_echeance: formVisite.date_echeance || null }
     if (visite) await supabase.from('documents').update(payload).eq('id', visite.id)
@@ -468,6 +519,7 @@ function OngletDocuments({ vehiculeId }) {
 
   async function handleSaveAssurance(e) {
     e.preventDefault()
+    if (!isAdmin) return
     setSavingAssurance(true)
     const payload = {
       vehicule_id: vehiculeId,
@@ -490,11 +542,13 @@ function OngletDocuments({ vehiculeId }) {
   }
 
   async function handleDeleteAssurance(id) {
+    if (!isAdmin) return
     await supabase.from('assurances').delete().eq('id', id)
     load()
   }
 
   function startEditAssurance(a) {
+    if (!isAdmin) return
     setEditingAssurance(a.id)
     setFormAssurance({
       date_debut: a.date_debut || '',
@@ -507,6 +561,7 @@ function OngletDocuments({ vehiculeId }) {
   }
 
   const assuranceActive = assurances[0]
+  const totals = getPeriodTotals(assurances, 'date_debut', 'montant')
 
   const colsAssurance = [
     { label: 'Période',        key: 'periode',       render: r => `${fmtDate(r.date_debut)} → ${fmtDate(r.date_echeance)}` },
@@ -529,13 +584,15 @@ function OngletDocuments({ vehiculeId }) {
             {assuranceActive && <AlerteBadge dateEcheance={assuranceActive.date_echeance} />}
             {assuranceActive && <span className="text-xs text-gray-400">Échéance : {fmtDate(assuranceActive.date_echeance)}</span>}
           </div>
-          <button className="btn-primary flex items-center justify-center gap-1 py-1.5 text-xs"
-            onClick={() => { setEditingAssurance(null); setFormAssurance({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' }); setShowFormAssurance(v => !v) }}>
-            <MdAdd size={16} /> Nouveau contrat
-          </button>
+          <AdminOnly>
+            <button className="btn-primary flex items-center justify-center gap-1 py-1.5 text-xs"
+              onClick={() => { setEditingAssurance(null); setFormAssurance({ date_debut: '', date_echeance: '', montant: '', assureur: '', numero_police: '' }); setShowFormAssurance(v => !v) }}>
+              <MdAdd size={16} /> Nouveau contrat
+            </button>
+          </AdminOnly>
         </div>
 
-        {showFormAssurance && (
+        {showFormAssurance && isAdmin && (
           <form onSubmit={handleSaveAssurance} className="p-4 bg-blue-50 border-b border-gray-200">
             <p className="text-sm font-medium text-gray-700 mb-3">{editingAssurance ? 'Modifier le contrat' : 'Nouveau contrat'}</p>
             <div className="grid grid-cols-1 gap-3 mb-3 md:grid-cols-3">
@@ -582,6 +639,7 @@ function OngletDocuments({ vehiculeId }) {
               ]}
             />
           </div>
+          <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
           <DataTable colonnes={colsAssurance} donnees={filterSort(assurances, assSearch, ['assureur', 'numero_police'], assSortKey, assSortDir)} vide="Aucun contrat d'assurance enregistré" />
         </div>
       </div>
@@ -594,12 +652,14 @@ function OngletDocuments({ vehiculeId }) {
             {visite?.date_echeance && <AlerteBadge dateEcheance={visite.date_echeance} />}
             {!visite && <span className="text-xs text-gray-400 italic">Non renseigné</span>}
           </div>
-          <button className="text-sm text-[#1A3C6B] underline hover:no-underline" onClick={() => {
-            setEditingVisite(v => !v)
-            setFormVisite({ date_realisation: visite?.date_realisation || '', date_echeance: visite?.date_echeance || '' })
-          }}>
-            {editingVisite ? 'Annuler' : (visite ? 'Modifier' : 'Renseigner')}
-          </button>
+          <AdminOnly>
+            <button className="text-sm text-[#1A3C6B] underline hover:no-underline" onClick={() => {
+              setEditingVisite(v => !v)
+              setFormVisite({ date_realisation: visite?.date_realisation || '', date_echeance: visite?.date_echeance || '' })
+            }}>
+              {editingVisite ? 'Annuler' : (visite ? 'Modifier' : 'Renseigner')}
+            </button>
+          </AdminOnly>
         </div>
 
         {!editingVisite && visite && (
@@ -609,7 +669,7 @@ function OngletDocuments({ vehiculeId }) {
           </div>
         )}
 
-        {editingVisite && (
+        {editingVisite && isAdmin && (
           <div className="flex flex-col gap-4 mt-2 sm:flex-row sm:items-end">
             <div>
               <label className="form-label">Date de réalisation</label>
@@ -627,9 +687,10 @@ function OngletDocuments({ vehiculeId }) {
   )
 }
 
-// ── Onglet Contraventions ────────────────────────────────────────────────────
+// Onglet Contraventions
 function OngletContraventions({ vehiculeId }) {
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [data, setData] = useState([])
   const [editData, setEditData] = useState(null)
   const [search, setSearch] = useState('')
@@ -645,6 +706,7 @@ function OngletContraventions({ vehiculeId }) {
   }
 
   async function handleDelete(id) {
+    if (!isAdmin) return
     await supabase.from('contraventions').delete().eq('id', id)
     load()
   }
@@ -671,6 +733,7 @@ function OngletContraventions({ vehiculeId }) {
   ]
 
   const filtered = filterSort(data, search, ['lieu', 'conducteur', 'nature', 'statut'], sortKey, sortDir)
+  const totals = getPeriodTotals(data, 'date', 'montant')
 
   return (
     <div>
@@ -678,9 +741,11 @@ function OngletContraventions({ vehiculeId }) {
         <button className="print:hidden btn-secondary flex items-center gap-2 text-sm" onClick={() => window.print()}>
           <MdPrint size={16} /> Imprimer
         </button>
-        <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/contravention/new`)}>
-          <MdAdd size={18} /> Ajouter une contravention
-        </button>
+        <AdminOnly>
+          <button className="btn-primary flex items-center gap-2" onClick={() => navigate(`/vehicules/${vehiculeId}/contravention/new`)}>
+            <MdAdd size={18} /> Ajouter une contravention
+          </button>
+        </AdminOnly>
       </div>
       <div className="mb-4">
         <SearchSort
@@ -697,6 +762,7 @@ function OngletContraventions({ vehiculeId }) {
           ]}
         />
       </div>
+      <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
       <DataTable colonnes={cols} donnees={filtered} vide="Aucune contravention" />
 
       {editData && (
@@ -712,10 +778,168 @@ function OngletContraventions({ vehiculeId }) {
   )
 }
 
-// ── Page principale VehiculeDetail ───────────────────────────────────────────
+// Page principale VehiculeDetail
+function OngletPeages({ vehiculeId }) {
+  const { isAdmin } = useRole()
+  const [mode, setMode] = useState('cash')
+  const [cartes, setCartes] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [modal, setModal] = useState(null)
+  const [selectedCarteId, setSelectedCarteId] = useState('')
+  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], montant: '', axe: '' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { load() }, [vehiculeId])
+
+  async function load() {
+    const [{ data: cartesData }, { data: txData }, { data: allCarteTx }] = await Promise.all([
+      supabase.from('peage_cartes').select('*').order('nom'),
+      supabase.from('peage_transactions').select('*, peage_cartes(nom, type)').eq('vehicule_id', vehiculeId).order('date', { ascending: false }),
+      supabase.from('peage_transactions').select('carte_id, montant, type').not('carte_id', 'is', null),
+    ])
+    setCartes((cartesData || []).map(carte => {
+      const solde = (allCarteTx || [])
+        .filter(t => t.carte_id === carte.id)
+        .reduce((sum, t) => {
+          if (t.type === 'rechargement') return sum + (t.montant || 0)
+          if (t.type === 'passage_carte') return sum - (t.montant || 0)
+          return sum
+        }, 0)
+      return { ...carte, solde }
+    }))
+    setTransactions(txData || [])
+  }
+
+  function openPassage(type) {
+    setModal(type)
+    setForm({ date: new Date().toISOString().split('T')[0], montant: '', axe: '' })
+  }
+
+  async function savePassage(e) {
+    e.preventDefault()
+    if (!isAdmin) return
+    if (modal === 'passage_carte' && !selectedCarteId) return
+    setSaving(true)
+    await supabase.from('peage_transactions').insert({
+      vehicule_id: vehiculeId,
+      carte_id: modal === 'passage_carte' ? selectedCarteId : null,
+      date: form.date,
+      type: modal,
+      montant: form.montant ? parseInt(form.montant) : 0,
+      axe: form.axe || null,
+    })
+    setSaving(false)
+    setModal(null)
+    window.dispatchEvent(new Event('peage-cartes-updated'))
+    load()
+  }
+
+  async function deleteTransaction(id) {
+    if (!isAdmin) return
+    await supabase.from('peage_transactions').delete().eq('id', id)
+    window.dispatchEvent(new Event('peage-cartes-updated'))
+    load()
+  }
+
+  const passagesCash = transactions.filter(t => t.type === 'passage_cash')
+  const passagesCarte = transactions.filter(t => t.type === 'passage_carte')
+  const peageCouts = transactions.filter(t => t.type !== 'rechargement')
+  const totals = getPeriodTotals(peageCouts, 'date', 'montant')
+  const selectedCarte = cartes.find(c => c.id === selectedCarteId)
+
+  const cashCols = [
+    { label: 'Date', key: 'date', render: r => fmtDate(r.date) },
+    { label: 'Axe', key: 'axe', render: r => r.axe || '—' },
+    { label: 'Montant', key: 'montant', render: r => `${fmtNum(r.montant)} FCFA` },
+    { label: '', key: '_actions', render: r => <ActionBtns onDelete={() => deleteTransaction(r.id)} canManage={isAdmin} /> },
+  ]
+  const passageCarteCols = [
+    { label: 'Date', key: 'date', render: r => fmtDate(r.date) },
+    { label: 'Carte', key: 'carte', render: r => r.peage_cartes?.nom || '—' },
+    { label: 'Axe', key: 'axe', render: r => r.axe || '—' },
+    { label: 'Montant', key: 'montant', render: r => `${fmtNum(r.montant)} FCFA` },
+    { label: '', key: '_actions', render: r => <ActionBtns onDelete={() => deleteTransaction(r.id)} canManage={isAdmin} /> },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
+
+      <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 text-sm print:hidden">
+        {[{ value: 'cash', label: 'Cash' }, { value: 'carte', label: 'Carte prépayée' }].map(item => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setMode(item.value)}
+            className={`px-4 py-2 ${mode === item.value ? 'bg-[#1A3C6B] text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'cash' ? (
+        <div className="space-y-4">
+          {isAdmin && (
+            <button className="btn-primary flex items-center gap-2" onClick={() => openPassage('passage_cash')}>
+              <MdAdd size={18} /> Ajouter un passage cash
+            </button>
+          )}
+          <DataTable colonnes={cashCols} donnees={passagesCash} vide="Aucun passage cash" />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <select className="form-input" value={selectedCarteId} onChange={e => setSelectedCarteId(e.target.value)}>
+              <option value="">Sélectionner une carte...</option>
+              {cartes.map(c => (
+                <option key={c.id} value={c.id}>{c.nom} ({fmtNum(c.solde || 0)} FCFA)</option>
+              ))}
+            </select>
+            {isAdmin && (
+              <button className="btn-primary" onClick={() => openPassage('passage_carte')} disabled={!selectedCarteId}>
+                Enregistrer un passage
+              </button>
+            )}
+          </div>
+          <DataTable colonnes={passageCarteCols} donnees={passagesCarte} vide="Aucun passage carte" />
+        </div>
+      )}
+
+      {modal && (
+        <Modal title={modal === 'passage_cash' ? 'Ajouter un passage cash' : 'Enregistrer un passage carte'} onClose={() => setModal(null)}>
+          <form onSubmit={savePassage} className="space-y-4">
+            {modal === 'passage_carte' && (
+              <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                Carte : <span className="font-semibold">{selectedCarte?.nom}</span> ({fmtNum(selectedCarte?.solde || 0)} FCFA)
+              </div>
+            )}
+            <div>
+              <label className="form-label">Date</label>
+              <input type="date" className="form-input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+            </div>
+            <div>
+              <label className="form-label">Montant</label>
+              <input type="number" className="form-input" value={form.montant} onChange={e => setForm(f => ({ ...f, montant: e.target.value }))} min="0" required />
+            </div>
+            <div>
+              <label className="form-label">Axe / trajet</label>
+              <input className="form-input" value={form.axe} onChange={e => setForm(f => ({ ...f, axe: e.target.value }))} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-secondary" onClick={() => setModal(null)}>Annuler</button>
+              <button className="btn-primary" disabled={saving}>{saving ? 'Enregistrement...' : 'Enregistrer'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  )
+}
 export default function VehiculeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { isAdmin, isChauffeur, vehiculeIds, scopeLoading } = useRole()
   const [searchParams] = useSearchParams()
   const [vehicule, setVehicule] = useState(null)
   const tabParam = searchParams.get('tab')
@@ -726,29 +950,51 @@ export default function VehiculeDetail() {
   const [newStatut, setNewStatut] = useState('')
   const [editingKm, setEditingKm] = useState(false)
   const [newKm, setNewKm] = useState('')
+  const [coutsHeader, setCoutsHeader] = useState({ mensuel: 0, annuel: 0 })
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    if (!scopeLoading) load()
+  }, [id, scopeLoading])
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('vehicules').select('*').eq('id', id).single()
+    const now = new Date()
+    const startYear = `${now.getFullYear()}-01-01`
+    const endYear = `${now.getFullYear()}-12-31`
+    const [{ data }, { data: ent }, { data: carb }, { data: contra }, { data: peages }] = await Promise.all([
+      supabase.from('vehicules').select('*').eq('id', id).single(),
+      supabase.from('entretiens').select('date, cout').eq('vehicule_id', id).gte('date', startYear).lte('date', endYear),
+      supabase.from('carburant').select('date, montant').eq('vehicule_id', id).gte('date', startYear).lte('date', endYear),
+      supabase.from('contraventions').select('date, montant').eq('vehicule_id', id).gte('date', startYear).lte('date', endYear),
+      supabase.from('peage_transactions').select('date, montant, type').eq('vehicule_id', id).neq('type', 'rechargement').gte('date', startYear).lte('date', endYear),
+    ])
+    const rows = [
+      ...(ent || []).map(r => ({ date: r.date, montant: r.cout || 0 })),
+      ...(carb || []),
+      ...(contra || []),
+      ...(peages || []),
+    ]
     setVehicule(data)
+    setCoutsHeader(getPeriodTotals(rows, 'date', 'montant'))
     setLoading(false)
   }
 
   async function updateStatut() {
+    if (!isAdmin) return
     await supabase.from('vehicules').update({ statut: newStatut }).eq('id', id)
     setEditingStatut(false)
     load()
   }
 
   async function updateKm() {
+    if (!isAdmin) return
     await supabase.from('vehicules').update({ kilometrage: parseInt(newKm) }).eq('id', id)
     setEditingKm(false)
     load()
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
+  if (loading || scopeLoading) return <div className="flex items-center justify-center h-64 text-gray-400">Chargement...</div>
+  if (isChauffeur && !vehiculeIds.includes(id)) return <div className="text-center text-red-500 mt-10">Acces non autorise a ce vehicule</div>
   if (!vehicule) return <div className="text-center text-red-500 mt-10">Véhicule introuvable</div>
 
   const sc = STATUT_CONFIG[vehicule.statut] || STATUT_CONFIG.actif
@@ -770,7 +1016,7 @@ export default function VehiculeDetail() {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold text-[#1A3C6B]">{vehicule.immatriculation}</h1>
-              {editingStatut ? (
+              {editingStatut && isAdmin ? (
                 <div className="flex items-center gap-2 print:hidden">
                   <select className="form-input w-36 text-xs" value={newStatut} onChange={e => setNewStatut(e.target.value)}>
                     <option value="actif">Actif</option>
@@ -782,9 +1028,9 @@ export default function VehiculeDetail() {
                 </div>
               ) : (
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer print:cursor-default ${sc.cls}`}
-                  onClick={() => { setNewStatut(vehicule.statut); setEditingStatut(true) }}
-                  title="Cliquer pour modifier">
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${isAdmin ? 'cursor-pointer' : ''} print:cursor-default ${sc.cls}`}
+                  onClick={() => { if (isAdmin) { setNewStatut(vehicule.statut); setEditingStatut(true) } }}
+                  title={isAdmin ? 'Cliquer pour modifier' : undefined}>
                   {sc.label}
                 </span>
               )}
@@ -792,20 +1038,35 @@ export default function VehiculeDetail() {
             <p className="text-gray-600">
               {[vehicule.marque, vehicule.modele, vehicule.annee && `(${vehicule.annee})`].filter(Boolean).join(' ')}
             </p>
+            <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+              {vehicule.nombre_places != null && <span>Places : <span className="font-medium text-gray-700">{vehicule.nombre_places}</span></span>}
+              {vehicule.puissance != null && <span>Puissance : <span className="font-medium text-gray-700">{vehicule.puissance}</span></span>}
+              {vehicule.affectation_lieu && <span>Affectation : <span className="font-medium text-gray-700">{vehicule.affectation_lieu}</span></span>}
+            </div>
           </div>
           <div className="text-right">
-            {editingKm ? (
+            {editingKm && isAdmin ? (
               <div className="flex items-center gap-2 print:hidden">
                 <input type="number" className="form-input w-32 text-sm" value={newKm} onChange={e => setNewKm(e.target.value)} />
                 <button className="text-xs btn-primary py-1" onClick={updateKm}>OK</button>
                 <button className="text-xs btn-secondary py-1" onClick={() => setEditingKm(false)}>×</button>
               </div>
             ) : (
-              <div className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 text-right print:cursor-default"
-                onClick={() => { setNewKm(vehicule.kilometrage); setEditingKm(true) }}
-                title="Cliquer pour modifier">
+              <div className={`${isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''} rounded-lg p-2 text-right print:cursor-default`}
+                onClick={() => { if (isAdmin) { setNewKm(vehicule.kilometrage); setEditingKm(true) } }}
+                title={isAdmin ? 'Cliquer pour modifier' : undefined}>
                 <p className="text-2xl font-bold text-gray-800">{fmtNum(vehicule.kilometrage)} km</p>
                 <p className="text-xs text-gray-400">Kilométrage actuel</p>
+                <div className="mt-3 grid grid-cols-1 gap-2 text-left sm:grid-cols-2">
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                    <p className="text-xs text-gray-400">Coût total mensuel</p>
+                    <p className="text-sm font-bold text-[#1A3C6B]">{fmtNum(coutsHeader.mensuel)} FCFA</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                    <p className="text-xs text-gray-400">Coût total annuel</p>
+                    <p className="text-sm font-bold text-[#1A3C6B]">{fmtNum(coutsHeader.annuel)} FCFA</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -827,8 +1088,10 @@ export default function VehiculeDetail() {
           {activeTab === 1 && <OngletCarburant vehiculeId={id} />}
           {activeTab === 2 && <OngletDocuments vehiculeId={id} />}
           {activeTab === 3 && <OngletContraventions vehiculeId={id} />}
+          {activeTab === 4 && <OngletPeages vehiculeId={id} />}
         </div>
       </div>
     </div>
   )
 }
+

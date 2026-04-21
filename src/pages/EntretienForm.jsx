@@ -2,10 +2,13 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdArrowBack, MdSave } from 'react-icons/md'
+import { AdminRequiredMessage } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 export default function EntretienForm() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { isAdmin } = useRole()
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     type_intervention: '',
@@ -24,6 +27,7 @@ export default function EntretienForm() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!isAdmin) return
     setSaving(true)
     setError('')
     const { error } = await supabase.from('entretiens').insert({
@@ -44,7 +48,7 @@ export default function EntretienForm() {
     navigate(`/vehicules/${id}?tab=entretiens`)
   }
 
-  return (
+  return isAdmin ? (
     <div className="max-w-2xl mx-auto space-y-6">
       <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigate(`/vehicules/${id}?tab=entretiens`)}>
         <MdArrowBack size={16} /> Retour au véhicule
@@ -106,5 +110,5 @@ export default function EntretienForm() {
         </form>
       </div>
     </div>
-  )
+  ) : <AdminRequiredMessage />
 }

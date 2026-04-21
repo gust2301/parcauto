@@ -11,10 +11,23 @@ import CarburantForm from './pages/CarburantForm'
 import ContraventionForm from './pages/ContraventionForm'
 import Chauffeurs from './pages/Chauffeurs'
 import Settings from './pages/Settings'
+import PeageCartes from './pages/PeageCartes'
+import { AdminRequiredMessage, RoleProvider } from './components/RoleContext'
+import { useRole } from './lib/roleContext'
 
 function ProtectedRoute({ session, children }) {
   if (!session) return <Navigate to="/login" replace />
-  return <Layout>{children}</Layout>
+  return (
+    <RoleProvider session={session}>
+      <Layout>{children}</Layout>
+    </RoleProvider>
+  )
+}
+
+function RequireAdmin({ children }) {
+  const { isAdmin } = useRole()
+  if (!isAdmin) return <AdminRequiredMessage />
+  return children
 }
 
 export default function App() {
@@ -45,11 +58,12 @@ export default function App() {
         <Route path="/dashboard"   element={<ProtectedRoute session={session}><Dashboard /></ProtectedRoute>} />
         <Route path="/vehicules"   element={<ProtectedRoute session={session}><Vehicules /></ProtectedRoute>} />
         <Route path="/vehicules/:id" element={<ProtectedRoute session={session}><VehiculeDetail /></ProtectedRoute>} />
-        <Route path="/vehicules/:id/entretien/new"    element={<ProtectedRoute session={session}><EntretienForm /></ProtectedRoute>} />
+        <Route path="/vehicules/:id/entretien/new"    element={<ProtectedRoute session={session}><RequireAdmin><EntretienForm /></RequireAdmin></ProtectedRoute>} />
         <Route path="/vehicules/:id/carburant/new"    element={<ProtectedRoute session={session}><CarburantForm /></ProtectedRoute>} />
-        <Route path="/vehicules/:id/contravention/new" element={<ProtectedRoute session={session}><ContraventionForm /></ProtectedRoute>} />
+        <Route path="/vehicules/:id/contravention/new" element={<ProtectedRoute session={session}><RequireAdmin><ContraventionForm /></RequireAdmin></ProtectedRoute>} />
         <Route path="/chauffeurs"  element={<ProtectedRoute session={session}><Chauffeurs /></ProtectedRoute>} />
-        <Route path="/settings"    element={<ProtectedRoute session={session}><Settings /></ProtectedRoute>} />
+        <Route path="/peage/cartes" element={<ProtectedRoute session={session}><PeageCartes /></ProtectedRoute>} />
+        <Route path="/settings"    element={<ProtectedRoute session={session}><RequireAdmin><Settings /></RequireAdmin></ProtectedRoute>} />
         <Route path="*" element={<Navigate to={session ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </BrowserRouter>

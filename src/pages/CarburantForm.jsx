@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MdArrowBack } from 'react-icons/md'
+import { WriteAccessMessage } from '../components/RoleContext'
+import { useRole } from '../lib/roleContext'
 
 const TYPES_CARBURANT = ['Gasoil', 'Essence', 'Autre']
 
@@ -22,6 +24,8 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
   const navigateHook = useNavigate()
   const id = editData ? editData.vehicule_id : params.id
   const isModal = !!editData
+  const { user, isAdmin, isChauffeur, vehiculeIds, scopeLoading } = useRole()
+  const canWrite = isAdmin || (isChauffeur && vehiculeIds.includes(id))
 
   const [kmVehicule, setKmVehicule] = useState(0)
   const [form, setForm] = useState(() => getInitialForm(editData))
@@ -39,6 +43,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!canWrite) return
     if (!editData && form.kilometrage && parseInt(form.kilometrage) < kmVehicule) {
       setError(`Le kilométrage saisi (${parseInt(form.kilometrage).toLocaleString('fr-FR')} km) est inférieur au kilométrage actuel du véhicule (${kmVehicule.toLocaleString('fr-FR')} km).`)
       return
@@ -55,6 +60,8 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
       montant: form.montant ? parseInt(form.montant) : 0,
       station: form.station || null,
       reference_bon: form.numero_carte || null,
+      created_by: editData?.created_by || user?.id || null,
+      status: editData?.status || 'brouillon',
     }
 
     let err
@@ -71,7 +78,7 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
       setSaving(false)
       return
     }
-    if (!editData && km && km > kmVehicule) {
+    if (isAdmin && !editData && km && km > kmVehicule) {
       await supabase.from('vehicules').update({ kilometrage: km }).eq('id', id)
     }
 
@@ -140,6 +147,17 @@ export default function CarburantForm({ editData, onSaved, onCancel }) {
         </button>
       </div>
     </form>
+  )
+
+  if (scopeLoading) return <div className="text-sm text-gray-400">Chargement...</div>
+
+  if (!canWrite) return isModal ? <WriteAccessMessage /> : (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1" onClick={() => navigateHook(`/vehicules/${id}?tab=carburant`)}>
+        <MdArrowBack size={16} /> Retour au véhicule
+      </button>
+      <WriteAccessMessage />
+    </div>
   )
 
   if (isModal) return content
