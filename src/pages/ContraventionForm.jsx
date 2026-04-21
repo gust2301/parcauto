@@ -205,7 +205,7 @@ export default function ContraventionForm({ editData, onSaved, onCancel }) {
     <div className="max-w-2xl mx-auto space-y-6">
       <button className="text-sm text-[#1A3C6B] hover:underline flex items-center gap-1"
         onClick={() => navigateHook(`/vehicules/${id}?tab=contraventions`)}>
-        <MdArrowBack size={16} /> Retour au vÃ©hicule
+        <MdArrowBack size={16} /> Retour au véhicule
       </button>
       <AdminRequiredMessage />
     </div>

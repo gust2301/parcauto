@@ -64,6 +64,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
   const [formDep, setFormDep] = useState({
     date: new Date().toISOString().split('T')[0],
     vehicule_id: '',
+    site: '',
     nombre_jours: '1',
     montant_journalier: '',
     status: 'impaye',
@@ -144,6 +145,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
     const payload = {
       chauffeur_id: chauffeur.id,
       vehicule_id: formDep.vehicule_id || null,
+      site: formDep.site || null,
       date: formDep.date,
       nombre_jours: parseInt(formDep.nombre_jours) || 1,
       montant_journalier: formDep.montant_journalier ? parseInt(formDep.montant_journalier) : 0,
@@ -157,7 +159,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
     }
     setShowFormDep(false)
     setEditingDep(null)
-    setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' })
+    setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', site: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' })
     setSaving(false)
     loadAll()
   }
@@ -175,6 +177,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
     setFormDep({
       date: d.date,
       vehicule_id: d.vehicule_id || '',
+      site: d.site || '',
       nombre_jours: d.nombre_jours?.toString() || '1',
       montant_journalier: d.montant_journalier?.toString() || '',
       status: d.status || 'impaye',
@@ -331,7 +334,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
           <h2 className="text-base font-semibold text-gray-800">Déplacements</h2>
           {canManageDeplacements && (
             <button className="btn-primary flex w-full items-center justify-center gap-2 text-sm sm:w-auto"
-              onClick={() => { setEditingDep(null); setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' }); setShowFormDep(true) }}>
+              onClick={() => { setEditingDep(null); setFormDep({ date: new Date().toISOString().split('T')[0], vehicule_id: '', site: '', nombre_jours: '1', montant_journalier: '', status: 'impaye' }); setShowFormDep(true) }}>
               <MdAdd size={16} /> Nouveau déplacement
             </button>
           )}
@@ -392,6 +395,16 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
                 </select>
               </div>
             </div>
+            <div className="mb-3">
+              <label className="form-label">Site</label>
+              <input
+                type="text"
+                className="form-input"
+                value={formDep.site}
+                onChange={e => setFormDep(f => ({ ...f, site: e.target.value }))}
+                placeholder="Ex: District Thiès, Siège, chantier..."
+              />
+            </div>
             <div className="flex gap-2">
               <button type="submit" className="btn-primary text-sm" disabled={saving}>{saving ? '...' : 'Enregistrer'}</button>
               <button type="button" className="btn-secondary text-sm" onClick={() => { setShowFormDep(false); setEditingDep(null) }}>Annuler</button>
@@ -403,7 +416,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {['Date', 'Véhicule', 'Jours', 'Montant/jour', 'Total', 'Statut', ''].map(h => (
+                {['Date', 'Véhicule', 'Site', 'Jours', 'Montant/jour', 'Total', 'Statut', ''].map(h => (
                   <th key={h} className="px-4 py-2 text-left text-xs text-gray-500 font-semibold uppercase">{h}</th>
                 ))}
               </tr>
@@ -420,6 +433,7 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
                         <span className="flex items-center gap-1"><MdDirectionsCar size={14} className="text-gray-400" />{d.vehicules.immatriculation}</span>
                       ) : '—'}
                     </td>
+                    <td className="px-4 py-2 text-gray-600">{d.site || '—'}</td>
                     <td className="px-4 py-2 text-gray-600">{d.nombre_jours || 1}</td>
                     <td className="px-4 py-2 text-gray-600">{fmtNum(d.montant_journalier)}</td>
                     <td className="px-4 py-2 font-medium text-gray-800">{fmtNum(total)}</td>
@@ -442,13 +456,13 @@ function FicheChauffeur({ chauffeur, vehicules, onBack, onUpdated }) {
                 )
               })}
               {deplacements.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400 italic">Aucun déplacement enregistré</td></tr>
+                <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 italic">Aucun déplacement enregistré</td></tr>
               )}
             </tbody>
             {deplacements.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-                  <td className="px-4 py-2 text-gray-700" colSpan={4}>Total</td>
+                  <td className="px-4 py-2 text-gray-700" colSpan={5}>Total</td>
                   <td className="px-4 py-2 text-gray-700">{fmtNum(totalDeplacement)} FCFA</td>
                   <td className="px-4 py-2">
                     {totalImpaye > 0 && <span className="text-orange-600 text-xs">{fmtNum(totalImpaye)} impayé</span>}

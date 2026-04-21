@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import AlerteBadge from '../components/AlerteBadge'
@@ -58,10 +58,10 @@ const STATUT_CONFIG = {
   panne:   { label: 'En panne', cls: 'bg-orange-100 text-orange-800' },
   reforme: { label: 'Réformé',  cls: 'bg-red-100 text-red-800' },
 }
-const TABS = ['Entretiens', 'Carburant', 'Documents', 'Contraventions']
-const TAB_KEYS = ['entretiens', 'carburant', 'documents', 'contraventions']
+const TABS = ['Entretiens', 'Carburant', 'Documents', 'Contraventions', 'Péages']
+const TAB_KEYS = ['entretiens', 'carburant', 'documents', 'contraventions', 'peages']
 
-// ── Confirmation suppression ─────────────────────────────────────────────────
+// Confirmation suppression
 function ConfirmDelete({ onConfirm, onCancel }) {
   return (
     <div className="flex items-center gap-2">
@@ -76,7 +76,7 @@ function ConfirmDelete({ onConfirm, onCancel }) {
   )
 }
 
-// ── Boutons actions ──────────────────────────────────────────────────────────
+// Boutons actions
 function ActionBtns({ onEdit, onDelete, canManage }) {
   const { isAdmin } = useRole()
   const [confirming, setConfirming] = useState(false)
@@ -96,7 +96,7 @@ function ActionBtns({ onEdit, onDelete, canManage }) {
   )
 }
 
-// ── Modal inline ─────────────────────────────────────────────────────────────
+// Modal inline
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -113,7 +113,7 @@ function Modal({ title, onClose, children }) {
   )
 }
 
-// ── Onglet Entretiens ────────────────────────────────────────────────────────
+// Onglet Entretiens
 function OngletEntretiens({ vehiculeId }) {
   const navigate = useNavigate()
   const { isAdmin } = useRole()
@@ -256,7 +256,7 @@ function OngletEntretiens({ vehiculeId }) {
   )
 }
 
-// ── Onglet Carburant ─────────────────────────────────────────────────────────
+// Onglet Carburant
 const MOIS_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
 function OngletCarburant({ vehiculeId }) {
@@ -476,7 +476,7 @@ function OngletCarburant({ vehiculeId }) {
   )
 }
 
-// ── Onglet Documents ─────────────────────────────────────────────────────────
+// Onglet Documents
 function OngletDocuments({ vehiculeId }) {
   const { isAdmin } = useRole()
   const [visite, setVisite] = useState(null)
@@ -687,7 +687,7 @@ function OngletDocuments({ vehiculeId }) {
   )
 }
 
-// ── Onglet Contraventions ────────────────────────────────────────────────────
+// Onglet Contraventions
 function OngletContraventions({ vehiculeId }) {
   const navigate = useNavigate()
   const { isAdmin } = useRole()
@@ -778,7 +778,164 @@ function OngletContraventions({ vehiculeId }) {
   )
 }
 
-// ── Page principale VehiculeDetail ───────────────────────────────────────────
+// Page principale VehiculeDetail
+function OngletPeages({ vehiculeId }) {
+  const { isAdmin } = useRole()
+  const [mode, setMode] = useState('cash')
+  const [cartes, setCartes] = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [modal, setModal] = useState(null)
+  const [selectedCarteId, setSelectedCarteId] = useState('')
+  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], montant: '', axe: '' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { load() }, [vehiculeId])
+
+  async function load() {
+    const [{ data: cartesData }, { data: txData }, { data: allCarteTx }] = await Promise.all([
+      supabase.from('peage_cartes').select('*').order('nom'),
+      supabase.from('peage_transactions').select('*, peage_cartes(nom, type)').eq('vehicule_id', vehiculeId).order('date', { ascending: false }),
+      supabase.from('peage_transactions').select('carte_id, montant, type').not('carte_id', 'is', null),
+    ])
+    setCartes((cartesData || []).map(carte => {
+      const solde = (allCarteTx || [])
+        .filter(t => t.carte_id === carte.id)
+        .reduce((sum, t) => {
+          if (t.type === 'rechargement') return sum + (t.montant || 0)
+          if (t.type === 'passage_carte') return sum - (t.montant || 0)
+          return sum
+        }, 0)
+      return { ...carte, solde }
+    }))
+    setTransactions(txData || [])
+  }
+
+  function openPassage(type) {
+    setModal(type)
+    setForm({ date: new Date().toISOString().split('T')[0], montant: '', axe: '' })
+  }
+
+  async function savePassage(e) {
+    e.preventDefault()
+    if (!isAdmin) return
+    if (modal === 'passage_carte' && !selectedCarteId) return
+    setSaving(true)
+    await supabase.from('peage_transactions').insert({
+      vehicule_id: vehiculeId,
+      carte_id: modal === 'passage_carte' ? selectedCarteId : null,
+      date: form.date,
+      type: modal,
+      montant: form.montant ? parseInt(form.montant) : 0,
+      axe: form.axe || null,
+    })
+    setSaving(false)
+    setModal(null)
+    window.dispatchEvent(new Event('peage-cartes-updated'))
+    load()
+  }
+
+  async function deleteTransaction(id) {
+    if (!isAdmin) return
+    await supabase.from('peage_transactions').delete().eq('id', id)
+    window.dispatchEvent(new Event('peage-cartes-updated'))
+    load()
+  }
+
+  const passagesCash = transactions.filter(t => t.type === 'passage_cash')
+  const passagesCarte = transactions.filter(t => t.type === 'passage_carte')
+  const peageCouts = transactions.filter(t => t.type !== 'rechargement')
+  const totals = getPeriodTotals(peageCouts, 'date', 'montant')
+  const selectedCarte = cartes.find(c => c.id === selectedCarteId)
+
+  const cashCols = [
+    { label: 'Date', key: 'date', render: r => fmtDate(r.date) },
+    { label: 'Axe', key: 'axe', render: r => r.axe || '—' },
+    { label: 'Montant', key: 'montant', render: r => `${fmtNum(r.montant)} FCFA` },
+    { label: '', key: '_actions', render: r => <ActionBtns onDelete={() => deleteTransaction(r.id)} canManage={isAdmin} /> },
+  ]
+  const passageCarteCols = [
+    { label: 'Date', key: 'date', render: r => fmtDate(r.date) },
+    { label: 'Carte', key: 'carte', render: r => r.peage_cartes?.nom || '—' },
+    { label: 'Axe', key: 'axe', render: r => r.axe || '—' },
+    { label: 'Montant', key: 'montant', render: r => `${fmtNum(r.montant)} FCFA` },
+    { label: '', key: '_actions', render: r => <ActionBtns onDelete={() => deleteTransaction(r.id)} canManage={isAdmin} /> },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
+
+      <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 text-sm print:hidden">
+        {[{ value: 'cash', label: 'Cash' }, { value: 'carte', label: 'Carte prépayée' }].map(item => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setMode(item.value)}
+            className={`px-4 py-2 ${mode === item.value ? 'bg-[#1A3C6B] text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'cash' ? (
+        <div className="space-y-4">
+          {isAdmin && (
+            <button className="btn-primary flex items-center gap-2" onClick={() => openPassage('passage_cash')}>
+              <MdAdd size={18} /> Ajouter un passage cash
+            </button>
+          )}
+          <DataTable colonnes={cashCols} donnees={passagesCash} vide="Aucun passage cash" />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <select className="form-input" value={selectedCarteId} onChange={e => setSelectedCarteId(e.target.value)}>
+              <option value="">Sélectionner une carte...</option>
+              {cartes.map(c => (
+                <option key={c.id} value={c.id}>{c.nom} ({fmtNum(c.solde || 0)} FCFA)</option>
+              ))}
+            </select>
+            {isAdmin && (
+              <button className="btn-primary" onClick={() => openPassage('passage_carte')} disabled={!selectedCarteId}>
+                Enregistrer un passage
+              </button>
+            )}
+          </div>
+          <DataTable colonnes={passageCarteCols} donnees={passagesCarte} vide="Aucun passage carte" />
+        </div>
+      )}
+
+      {modal && (
+        <Modal title={modal === 'passage_cash' ? 'Ajouter un passage cash' : 'Enregistrer un passage carte'} onClose={() => setModal(null)}>
+          <form onSubmit={savePassage} className="space-y-4">
+            {modal === 'passage_carte' && (
+              <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                Carte : <span className="font-semibold">{selectedCarte?.nom}</span> ({fmtNum(selectedCarte?.solde || 0)} FCFA)
+              </div>
+            )}
+            <div>
+              <label className="form-label">Date</label>
+              <input type="date" className="form-input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+            </div>
+            <div>
+              <label className="form-label">Montant</label>
+              <input type="number" className="form-input" value={form.montant} onChange={e => setForm(f => ({ ...f, montant: e.target.value }))} min="0" required />
+            </div>
+            <div>
+              <label className="form-label">Axe / trajet</label>
+              <input className="form-input" value={form.axe} onChange={e => setForm(f => ({ ...f, axe: e.target.value }))} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-secondary" onClick={() => setModal(null)}>Annuler</button>
+              <button className="btn-primary" disabled={saving}>{saving ? 'Enregistrement...' : 'Enregistrer'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  )
+}
 export default function VehiculeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -793,6 +950,7 @@ export default function VehiculeDetail() {
   const [newStatut, setNewStatut] = useState('')
   const [editingKm, setEditingKm] = useState(false)
   const [newKm, setNewKm] = useState('')
+  const [coutsHeader, setCoutsHeader] = useState({ mensuel: 0, annuel: 0 })
 
   useEffect(() => {
     if (!scopeLoading) load()
@@ -800,8 +958,24 @@ export default function VehiculeDetail() {
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('vehicules').select('*').eq('id', id).single()
+    const now = new Date()
+    const startYear = `${now.getFullYear()}-01-01`
+    const endYear = `${now.getFullYear()}-12-31`
+    const [{ data }, { data: ent }, { data: carb }, { data: contra }, { data: peages }] = await Promise.all([
+      supabase.from('vehicules').select('*').eq('id', id).single(),
+      supabase.from('entretiens').select('date, cout').eq('vehicule_id', id).gte('date', startYear).lte('date', endYear),
+      supabase.from('carburant').select('date, montant').eq('vehicule_id', id).gte('date', startYear).lte('date', endYear),
+      supabase.from('contraventions').select('date, montant').eq('vehicule_id', id).gte('date', startYear).lte('date', endYear),
+      supabase.from('peage_transactions').select('date, montant, type').eq('vehicule_id', id).neq('type', 'rechargement').gte('date', startYear).lte('date', endYear),
+    ])
+    const rows = [
+      ...(ent || []).map(r => ({ date: r.date, montant: r.cout || 0 })),
+      ...(carb || []),
+      ...(contra || []),
+      ...(peages || []),
+    ]
     setVehicule(data)
+    setCoutsHeader(getPeriodTotals(rows, 'date', 'montant'))
     setLoading(false)
   }
 
@@ -883,6 +1057,16 @@ export default function VehiculeDetail() {
                 title={isAdmin ? 'Cliquer pour modifier' : undefined}>
                 <p className="text-2xl font-bold text-gray-800">{fmtNum(vehicule.kilometrage)} km</p>
                 <p className="text-xs text-gray-400">Kilométrage actuel</p>
+                <div className="mt-3 grid grid-cols-1 gap-2 text-left sm:grid-cols-2">
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                    <p className="text-xs text-gray-400">Coût total mensuel</p>
+                    <p className="text-sm font-bold text-[#1A3C6B]">{fmtNum(coutsHeader.mensuel)} FCFA</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                    <p className="text-xs text-gray-400">Coût total annuel</p>
+                    <p className="text-sm font-bold text-[#1A3C6B]">{fmtNum(coutsHeader.annuel)} FCFA</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -904,6 +1088,7 @@ export default function VehiculeDetail() {
           {activeTab === 1 && <OngletCarburant vehiculeId={id} />}
           {activeTab === 2 && <OngletDocuments vehiculeId={id} />}
           {activeTab === 3 && <OngletContraventions vehiculeId={id} />}
+          {activeTab === 4 && <OngletPeages vehiculeId={id} />}
         </div>
       </div>
     </div>
