@@ -20,9 +20,7 @@ export default function Layout({ children }) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [lowPeageCount, setLowPeageCount] = useState(0)
   const [activeAlertCount, setActiveAlertCount] = useState(0)
-  const visibleNavItems = isAdmin
-    ? [...navItems, { to: '/settings', label: 'Parametres', icon: MdSettings }]
-    : navItems
+  const visibleNavItems = [...navItems, { to: '/settings', label: 'Parametres', icon: MdSettings }]
 
   useEffect(() => {
     if (scopeLoading) return
