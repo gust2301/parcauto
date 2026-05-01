@@ -328,6 +328,8 @@ function OngletCarburant({ vehiculeId }) {
     { label: 'Conso/100',   key: 'conso',          render: r => r.conso ? r.conso + ' L' : '—' },
     { label: 'Station',     key: 'station' },
     { label: 'N° carte',    key: 'reference_bon' },
+    { label: 'Mission',     key: 'objet_mission',  render: r => r.objet_mission || '—' },
+    { label: 'Agent',       key: 'agent_nom',      render: r => r.agent_nom || '—' },
     { label: '',            key: '_actions',        render: r => (
       <ActionBtns
         canManage={isAdmin || (isChauffeur && r.created_by === user?.id && (r.status || 'brouillon') === 'brouillon')}
@@ -380,7 +382,7 @@ function OngletCarburant({ vehiculeId }) {
             />
           </div>
           <CostSummary mensuel={totals.mensuel} annuel={totals.annuel} />
-          <DataTable colonnes={cols} donnees={filterSort(avecConso, search, ['type_carburant', 'station', 'reference_bon'], sortKey, sortDir)} vide="Aucun plein enregistré" />
+          <DataTable colonnes={cols} donnees={filterSort(avecConso, search, ['type_carburant', 'station', 'reference_bon', 'objet_mission', 'agent_nom', 'observation'], sortKey, sortDir)} vide="Aucun plein enregistré" />
         </>
       )}
 

@@ -91,6 +91,8 @@ export default function Dashboard() {
       { data: deps },
       { data: peageCartes },
       { data: peageTransactions },
+      { data: carburantCartes },
+      { data: carburantCarteTransactions },
     ] = await Promise.all([
       isChauffeur && vehiculeIds.length === 0
         ? supabase.from('vehicules').select('id, statut, immatriculation, marque, modele').limit(0)
@@ -112,6 +114,8 @@ export default function Dashboard() {
       supabase.from('deplacements').select('*, chauffeurs(nom_complet), vehicules(immatriculation)').order('date', { ascending: false }).limit(100),
       supabase.from('peage_cartes').select('*'),
       supabase.from('peage_transactions').select('carte_id, montant, type, vehicule_id, vehicules(immatriculation)'),
+      supabase.from('carburant_cartes').select('*'),
+      supabase.from('carburant_carte_transactions').select('carte_id, montant, type, vehicule_id, vehicules(immatriculation)'),
     ])
 
     const scoped = rows => isChauffeur ? (rows || []).filter(r => !r.vehicule_id || vehiculeIds.includes(r.vehicule_id)) : (rows || [])
@@ -147,6 +151,17 @@ export default function Dashboard() {
       const lastPassage = carteTransactions.find(t => t.type === 'passage_carte' && t.vehicule_id)
       return { ...carte, vehicule_id: lastPassage?.vehicule_id, vehicules: lastPassage?.vehicules, type: 'peage', label: 'Péage', solde }
     }).filter(carte => carte.solde < (carte.seuil_alerte || 0))
+    const scopedCarburantCarteTransactions = scoped(carburantCarteTransactions)
+    const alertesCarburantCartes = (carburantCartes || []).map(carte => {
+      const carteTransactions = (scopedCarburantCarteTransactions || []).filter(t => t.carte_id === carte.id)
+      const solde = carteTransactions.reduce((sum, t) => {
+        if (t.type === 'approvisionnement') return sum + (t.montant || 0)
+        if (t.type === 'consommation') return sum - (t.montant || 0)
+        return sum
+      }, 0)
+      const lastUsage = [...carteTransactions].reverse().find(t => t.type === 'consommation' && t.vehicule_id)
+      return { ...carte, vehicule_id: lastUsage?.vehicule_id, vehicules: lastUsage?.vehicules, type: 'carburant_carte', label: 'Carte carburant', solde }
+    }).filter(carte => carte.solde <= (carte.seuil_alerte || 0))
 
     // Coût par véhicule avec détail par catégorie.
     const coutVehicule = await Promise.all((vehicules || []).map(async v => {
@@ -175,8 +190,8 @@ export default function Dashboard() {
       }
     }))
 
-    setStats({ actifs, alertes: docsAlerte.length + alertesPeages.length, coutMois, coutAnnee })
-    setAlertesDocs([...docsAlerte, ...alertesPeages])
+    setStats({ actifs, alertes: docsAlerte.length + alertesPeages.length + alertesCarburantCartes.length, coutMois, coutAnnee })
+    setAlertesDocs([...docsAlerte, ...alertesPeages, ...alertesCarburantCartes])
     setCoutParVehicule(coutVehicule.filter(v => v.total > 0).sort((a, b) => b.total - a.total))
     setDeplacements(scoped(deps))
     hasLoaded.current = true
@@ -263,11 +278,19 @@ export default function Dashboard() {
               {paginatedAlertes.map(d => (
                 <div key={d.id}
                   className="flex flex-col gap-2 py-2 border-b border-gray-100 last:border-0 hover:bg-blue-50 rounded-lg px-2 cursor-pointer transition-colors sm:flex-row sm:items-center sm:justify-between"
-                  onClick={() => d.vehicule_id && navigate(`/vehicules/${d.vehicule_id}?tab=${d.type === 'peage' ? 'peages' : 'documents'}`)}>
+                  onClick={() => {
+                    if (d.type === 'carburant_carte') {
+                      navigate('/carburant/cartes')
+                      return
+                    }
+                    if (d.vehicule_id) {
+                      navigate(`/vehicules/${d.vehicule_id}?tab=${d.type === 'peage' ? 'peages' : 'documents'}`)
+                    }
+                  }}>
                   <div>
-                    {d.type === 'peage' ? (
+                    {d.type === 'peage' || d.type === 'carburant_carte' ? (
                       <>
-                        <p className="text-sm font-medium text-gray-800">{d.nom} - {d.vehicules?.immatriculation || 'Aucun véhicule récent'}</p>
+                        <p className="text-sm font-medium text-gray-800">{(d.nom || d.numero)} - {d.vehicules?.immatriculation || 'Aucun véhicule récent'}</p>
                         <p className="text-xs text-gray-400">Solde : {fmt(d.solde)} - Seuil : {fmt(d.seuil_alerte || 0)}</p>
                       </>
                     ) : (
@@ -278,7 +301,7 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {d.type === 'peage' ? (
+                    {d.type === 'peage' || d.type === 'carburant_carte' ? (
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Solde bas</span>
                     ) : (
                       <AlerteBadge dateEcheance={d.date_echeance} />

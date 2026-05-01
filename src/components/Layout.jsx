@@ -12,6 +12,7 @@ const navItems = [
   { to: '/vehicules', label: 'Vehicules', icon: MdDirectionsCar },
   { to: '/chauffeurs', label: 'Chauffeurs', icon: MdPerson },
   { to: '/peage/cartes', label: 'Cartes de péage', icon: CreditCard, badge: 'peageLow' },
+  { to: '/carburant/cartes', label: 'Cartes carburant', icon: CreditCard },
 ]
 
 export default function Layout({ children }) {
