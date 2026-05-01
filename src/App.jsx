@@ -12,6 +12,7 @@ import ContraventionForm from './pages/ContraventionForm'
 import Chauffeurs from './pages/Chauffeurs'
 import Settings from './pages/Settings'
 import PeageCartes from './pages/PeageCartes'
+import CarburantCartes from './pages/CarburantCartes'
 import { AdminRequiredMessage, RoleProvider } from './components/RoleContext'
 import { useRole } from './lib/roleContext'
 
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/vehicules/:id/contravention/new" element={<ProtectedRoute session={session}><RequireAdmin><ContraventionForm /></RequireAdmin></ProtectedRoute>} />
         <Route path="/chauffeurs"  element={<ProtectedRoute session={session}><Chauffeurs /></ProtectedRoute>} />
         <Route path="/peage/cartes" element={<ProtectedRoute session={session}><PeageCartes /></ProtectedRoute>} />
+        <Route path="/carburant/cartes" element={<ProtectedRoute session={session}><CarburantCartes /></ProtectedRoute>} />
         <Route path="/settings"    element={<ProtectedRoute session={session}><Settings /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to={session ? "/dashboard" : "/login"} replace />} />
       </Routes>
